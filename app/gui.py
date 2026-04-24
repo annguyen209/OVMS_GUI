@@ -175,19 +175,21 @@ class HardwareBar(ctk.CTkFrame):
 
     def __init__(self, master, **kwargs):
         kwargs.setdefault("fg_color", _CARD)
-        kwargs.setdefault("corner_radius", 8)
+        kwargs.setdefault("corner_radius", 6)
         kwargs.setdefault("border_width", 1)
         kwargs.setdefault("border_color", _BORDER)
+        kwargs.setdefault("height", 32)
         super().__init__(master, **kwargs)
+        self.pack_propagate(False)
 
         self._inner = ctk.CTkFrame(self, fg_color="transparent")
-        self._inner.pack(fill="x", padx=14, pady=8)
+        self._inner.pack(fill="both", expand=True, padx=12, pady=0)
 
         self._placeholder = ctk.CTkLabel(
             self._inner, text="Detecting hardware...",
             font=ctk.CTkFont(size=11), text_color=_MUTED, anchor="w",
         )
-        self._placeholder.pack(side="left")
+        self._placeholder.pack(side="left", pady=0)
 
         # Detect after mainloop starts — log parse is instant
         self.after(200, lambda: threading.Thread(
