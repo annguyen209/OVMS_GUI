@@ -189,8 +189,9 @@ class HardwareBar(ctk.CTkFrame):
         )
         self._placeholder.pack(side="left")
 
-        # Detect in background so the dashboard opens instantly
-        threading.Thread(target=self._detect, daemon=True).start()
+        # Detect after mainloop starts — log parse is instant
+        self.after(200, lambda: threading.Thread(
+            target=self._detect, daemon=True).start())
 
     def _detect(self):
         devices = _detect_devices()
@@ -202,24 +203,44 @@ class HardwareBar(ctk.CTkFrame):
     def _render(self, devices):
         self._placeholder.destroy()
 
-        _token_colors = {"CPU": _BLUE, "GPU": _GREEN, "NPU": _AMBER}
+        _token_colors  = {"CPU": _BLUE, "GPU": _GREEN, "NPU": _AMBER}
+        _token_labels  = {
+            "CPU": "Processor",
+            "GPU": "Integrated GPU",
+            "NPU": "Neural Processor",
+        }
+        _token_subtitles = {
+            "CPU": "General-purpose inference",
+            "GPU": "Arc iGPU — shared RAM as VRAM",
+            "NPU": "Intel AI Boost — low power",
+        }
 
-        for i, (token, name, _) in enumerate(devices):
+        for i, (token, name, desc) in enumerate(devices):
             if i > 0:
                 ctk.CTkFrame(self._inner, width=1, fg_color=_BORDER
-                             ).pack(side="left", fill="y", padx=12, pady=4)
+                             ).pack(side="left", fill="y", padx=16, pady=4)
 
             col = ctk.CTkFrame(self._inner, fg_color="transparent")
             col.pack(side="left")
 
-            ctk.CTkLabel(col, text=token,
+            color = _token_colors.get(token, _MUTED)
+
+            # Token badge
+            badge_row = ctk.CTkFrame(col, fg_color="transparent")
+            badge_row.pack(anchor="w")
+            ctk.CTkLabel(badge_row, text=token,
                          font=ctk.CTkFont(size=10, weight="bold"),
-                         text_color=_token_colors.get(token, _MUTED),
-                         ).pack(anchor="w")
-            ctk.CTkLabel(col, text=name,
+                         text_color=color).pack(side="left")
+            ctk.CTkLabel(badge_row,
+                         text=f"  {_token_labels.get(token, '')}",
+                         font=ctk.CTkFont(size=10),
+                         text_color=_MUTED).pack(side="left")
+
+            # Full name (or fallback subtitle)
+            display = name if name != token else _token_subtitles.get(token, token)
+            ctk.CTkLabel(col, text=display,
                          font=ctk.CTkFont(size=11),
-                         text_color=_TEXT2,
-                         ).pack(anchor="w")
+                         text_color=_TEXT2).pack(anchor="w")
 
 
 # ---------------------------------------------------------------------------

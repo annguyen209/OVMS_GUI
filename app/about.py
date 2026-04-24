@@ -45,21 +45,13 @@ def _detect_devices() -> list[tuple[str, str, str]]:
     """
     Returns list of (device_token, full_name, description).
 
-    Uses openvino direct import (already in this venv) to get accurate
-    full device names. Falls back to token names on failure.
-    """
-    try:
-        import openvino as ov
-        core = ov.Core()
-        return [
-            (d, core.get_property(d, "FULL_DEVICE_NAME"),
-             _DESCRIPTIONS.get(d, ""))
-            for d in core.available_devices
-        ]
-    except Exception:
-        pass
+    Fast path: parse the OVMS log (the server already printed the device
+    list on startup). Instant file read — no OpenVINO cold-start delay.
 
-    # Fallback: parse token list from OVMS log (no full names available)
+    Slow fallback: direct openvino import for full device names when the
+    log is unavailable (takes 15-30 s on first call, use sparingly).
+    """
+    # 1. Parse OVMS log — instant
     try:
         log = Path(cfg.ovms_log)
         if log.is_file():
@@ -68,10 +60,32 @@ def _detect_devices() -> list[tuple[str, str, str]]:
                 m = re.search(r"Available devices for Open VINO:\s*(.+)", line)
                 if m:
                     tokens = [t.strip() for t in m.group(1).split(",")]
+                    # Try to extract full names printed on separate lines
+                    # e.g. "CPU: Intel(R) Core(TM) Ultra 7 155H"
+                    names: dict[str, str] = {}
+                    for l2 in text.splitlines():
+                        for tok in tokens:
+                            n = re.search(
+                                rf"\b{re.escape(tok)}\b[^:]*:\s*(.+)", l2
+                            )
+                            if n and tok not in names:
+                                names[tok] = n.group(1).strip()
                     return [
-                        (t, t, _DESCRIPTIONS.get(t, ""))
+                        (t, names.get(t, t), _DESCRIPTIONS.get(t, ""))
                         for t in tokens
                     ]
+    except Exception:
+        pass
+
+    # 2. Direct openvino import — slow but accurate
+    try:
+        import openvino as ov
+        core = ov.Core()
+        return [
+            (d, core.get_property(d, "FULL_DEVICE_NAME"),
+             _DESCRIPTIONS.get(d, ""))
+            for d in core.available_devices
+        ]
     except Exception:
         pass
 
