@@ -313,19 +313,14 @@ class ModelRow(ctk.CTkFrame):
         self._build_ui()
         self.refresh()
 
-    # Fixed column widths — must match header in ModelsTab._build_ui()
-    _COL_SIZE   = 80
-    _COL_STATUS = 148
-    _COL_ACTION = 140
+    # Shared weight ratios — header reads these too so columns align
+    _WEIGHTS = (5, 1, 2, 2)
 
     def _build_ui(self):
-        # Col 0 stretches; cols 1-3 are fixed so header and rows align
-        self.columnconfigure(0, weight=1)
-        self.columnconfigure(1, weight=0, minsize=self._COL_SIZE)
-        self.columnconfigure(2, weight=0, minsize=self._COL_STATUS)
-        self.columnconfigure(3, weight=0, minsize=self._COL_ACTION)
+        for col, w in enumerate(self._WEIGHTS):
+            self.columnconfigure(col, weight=w, uniform="table_cols")
 
-        # Name + notes — fills the stretchy column
+        # Name + notes
         info_frame = ctk.CTkFrame(self, fg_color="transparent")
         info_frame.grid(row=0, column=0, sticky="nsew", padx=(14, 8), pady=10)
 
@@ -345,40 +340,37 @@ class ModelRow(ctk.CTkFrame):
                 anchor="w",
             ).pack(anchor="w")
 
-        # Size — fixed width, centred
+        # Size
         ctk.CTkLabel(
             self,
             text=self._model.size_label,
             font=ctk.CTkFont(size=12),
             text_color=_TEXT2,
-            width=self._COL_SIZE,
             anchor="center",
-        ).grid(row=0, column=1, padx=0, pady=10)
+        ).grid(row=0, column=1, sticky="ew", padx=4, pady=10)
 
-        # Status — fixed width, centred
+        # Status
         self._status_lbl = ctk.CTkLabel(
             self,
             text="",
             font=ctk.CTkFont(size=12),
-            width=self._COL_STATUS,
             anchor="center",
         )
-        self._status_lbl.grid(row=0, column=2, padx=0, pady=10)
+        self._status_lbl.grid(row=0, column=2, sticky="ew", padx=4, pady=10)
 
-        # Progress bar spans all columns when visible
+        # Progress bar
         self._progress_bar = ctk.CTkProgressBar(self, height=10)
         self._progress_bar.set(0)
 
-        # Action button — fixed width
+        # Action button
         self._btn = ctk.CTkButton(
             self,
             text="",
-            width=self._COL_ACTION - 20,
             height=34,
             font=ctk.CTkFont(size=12),
             command=self._on_btn_click,
         )
-        self._btn.grid(row=0, column=3, padx=(4, 14), pady=10)
+        self._btn.grid(row=0, column=3, sticky="ew", padx=(4, 14), pady=10)
 
     def refresh(self):
         """Update status label and button text to reflect current model state."""
@@ -509,24 +501,18 @@ class ModelsTab(ctk.CTkFrame):
         )
         self._notif_bar.pack(fill="x", padx=20, pady=(12, 4))
 
-        # Column headers — widths must match ModelRow._COL_* constants
-        _cs = ModelRow._COL_SIZE
-        _cx = ModelRow._COL_STATUS
-        _ca = ModelRow._COL_ACTION
-
+        # Column headers — same weights as ModelRow so columns align
         header = ctk.CTkFrame(self, fg_color=_CARD2, corner_radius=8,
                               border_width=1, border_color=_BORDER)
         header.pack(fill="x", padx=16, pady=(0, 6))
-        header.columnconfigure(0, weight=1)
-        header.columnconfigure(1, weight=0, minsize=_cs)
-        header.columnconfigure(2, weight=0, minsize=_cx)
-        header.columnconfigure(3, weight=0, minsize=_ca)
+        for col, w in enumerate(ModelRow._WEIGHTS):
+            header.columnconfigure(col, weight=w, uniform="table_cols")
 
         col_defs = [
-            (0, "Model",  "w",      14, 0),
-            (1, "Size",   "center", 0,  0),
-            (2, "Status", "center", 0,  0),
-            (3, "Action", "center", 4, 14),
+            (0, "Model",  "w",      14,  0),
+            (1, "Size",   "center",  4,  4),
+            (2, "Status", "center",  4,  4),
+            (3, "Action", "center",  4, 14),
         ]
         for col, text, anchor, px_l, px_r in col_defs:
             ctk.CTkLabel(
