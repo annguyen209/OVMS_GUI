@@ -782,6 +782,56 @@ class ModelsTab(ctk.CTkFrame):
 
 
 # ---------------------------------------------------------------------------
+# Windows startup registry helpers
+# ---------------------------------------------------------------------------
+
+_REG_KEY  = r"Software\Microsoft\Windows\CurrentVersion\Run"
+_REG_NAME = "OVMS Manager"
+
+
+def _startup_command() -> str:
+    """Command written to the registry for auto-start."""
+    import sys
+    # Use pythonw.exe (no console window) to launch the GUI
+    pythonw = sys.executable.replace("python.exe", "pythonw.exe")
+    main_py = str(Path(__file__).parent.parent / "main.py")
+    return f'"{pythonw}" "{main_py}"'
+
+
+def is_startup_enabled() -> bool:
+    try:
+        import winreg
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, _REG_KEY, 0,
+                             winreg.KEY_READ)
+        winreg.QueryValueEx(key, _REG_NAME)
+        winreg.CloseKey(key)
+        return True
+    except Exception:
+        return False
+
+
+def set_startup_enabled(enabled: bool) -> tuple[bool, str]:
+    try:
+        import winreg
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, _REG_KEY, 0,
+                             winreg.KEY_SET_VALUE)
+        if enabled:
+            winreg.SetValueEx(key, _REG_NAME, 0, winreg.REG_SZ,
+                              _startup_command())
+            msg = "Added to Windows startup."
+        else:
+            try:
+                winreg.DeleteValue(key, _REG_NAME)
+            except FileNotFoundError:
+                pass
+            msg = "Removed from Windows startup."
+        winreg.CloseKey(key)
+        return True, msg
+    except Exception as exc:
+        return False, f"Registry error: {exc}"
+
+
+# ---------------------------------------------------------------------------
 # Settings Tab
 # ---------------------------------------------------------------------------
 
@@ -848,6 +898,62 @@ class SettingsTab(ctk.CTkFrame):
                 )
                 btn.grid(row=row_idx, column=2, padx=(0, 8), pady=6)
 
+        # Windows startup section
+        ctk.CTkLabel(
+            self, text="Windows Startup",
+            font=ctk.CTkFont(size=15, weight="bold"),
+            text_color=_TEXT, anchor="w",
+        ).pack(fill="x", padx=20, pady=(16, 4))
+
+        startup_card = ctk.CTkFrame(self, fg_color=_CARD, corner_radius=8,
+                                    border_width=1, border_color=_BORDER)
+        startup_card.pack(fill="x", padx=16, pady=(0, 4))
+
+        # Start with Windows toggle
+        sw_row = ctk.CTkFrame(startup_card, fg_color="transparent")
+        sw_row.pack(fill="x", padx=16, pady=(12, 4))
+
+        self._startup_var = ctk.BooleanVar(value=is_startup_enabled())
+        ctk.CTkLabel(sw_row, text="Start with Windows",
+                     font=ctk.CTkFont(size=12, weight="bold"),
+                     text_color=_TEXT, anchor="w").pack(side="left")
+        ctk.CTkSwitch(sw_row, text="", variable=self._startup_var,
+                      width=44, button_color=_BLUE, progress_color=_BLUE,
+                      command=self._toggle_startup,
+                      ).pack(side="right")
+
+        ctk.CTkLabel(startup_card,
+                     text="Launches OVMS Manager silently at Windows login "
+                          "via HKCU\\...\\Run registry key.",
+                     font=ctk.CTkFont(size=11), text_color=_MUTED,
+                     anchor="w", wraplength=800,
+                     ).pack(fill="x", padx=16, pady=(0, 4))
+
+        # Auto-start stack toggle
+        as_row = ctk.CTkFrame(startup_card, fg_color="transparent")
+        as_row.pack(fill="x", padx=16, pady=(4, 4))
+
+        self._autostack_var = ctk.BooleanVar(
+            value=bool(cfg.get("auto_start_stack", False))
+        )
+        ctk.CTkLabel(as_row, text="Auto-start OVMS stack on launch",
+                     font=ctk.CTkFont(size=12, weight="bold"),
+                     text_color=_TEXT, anchor="w").pack(side="left")
+        ctk.CTkSwitch(as_row, text="", variable=self._autostack_var,
+                      width=44, button_color=_BLUE, progress_color=_BLUE,
+                      command=self._toggle_autostack,
+                      ).pack(side="right")
+
+        ctk.CTkLabel(startup_card,
+                     text="Automatically starts OVMS and the proxy when the app opens.",
+                     font=ctk.CTkFont(size=11), text_color=_MUTED,
+                     anchor="w").pack(fill="x", padx=16, pady=(0, 12))
+
+        self._startup_status = ctk.CTkLabel(
+            self, text="", font=ctk.CTkFont(size=11), text_color=_MUTED, anchor="w"
+        )
+        self._startup_status.pack(fill="x", padx=20, pady=(0, 4))
+
         # Save button
         save_row = ctk.CTkFrame(self, fg_color="transparent")
         save_row.pack(fill="x", padx=20, pady=(4, 16))
@@ -896,6 +1002,16 @@ class SettingsTab(ctk.CTkFrame):
         self._save_status.configure(text="Saved.", text_color=_GREEN)
         self.after(3000, lambda: self._save_status.configure(text=""))
 
+    def _toggle_startup(self):
+        enabled = self._startup_var.get()
+        ok, msg = set_startup_enabled(enabled)
+        color = _GREEN if ok else _RED
+        self._startup_status.configure(text=msg, text_color=color)
+        self.after(4000, lambda: self._startup_status.configure(text=""))
+
+    def _toggle_autostack(self):
+        cfg.set("auto_start_stack", self._autostack_var.get())
+
 
 # ---------------------------------------------------------------------------
 # Main Application Window
@@ -921,8 +1037,11 @@ class App(ctk.CTk):
 
         self._build_ui()
         self._setup_tray()
-        # Minimize to tray on close
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        # Auto-start stack if configured
+        if cfg.get("auto_start_stack", False):
+            self.after(1500, self._auto_start_stack)
 
     # ------------------------------------------------------------------
     # UI
@@ -1020,6 +1139,10 @@ class App(ctk.CTk):
             self._tabs.set("Setup")
 
         self._tabs.configure(command=self._on_tab_change)
+
+    def _auto_start_stack(self):
+        if not (self._server.ovms_running or self._server.proxy_running):
+            threading.Thread(target=self._server.start_stack, daemon=True).start()
 
     def _on_tab_change(self):
         tab = self._tabs.get()
