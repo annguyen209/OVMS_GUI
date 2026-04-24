@@ -236,8 +236,12 @@ class ChatTab(ctk.CTkFrame):
                          lambda e: setattr(self, "_ime_composing", True))
         self._input.bind("<<CompositionEnd>>",
                          lambda e: setattr(self, "_ime_composing", False))
-        self._input.bind("<Return>",       self._on_enter)
-        self._input.bind("<Shift-Return>", lambda e: None)  # allow newline
+        # Use add="+" so our handler runs alongside the default handler,
+        # not instead of it. The default handler lets Unikey/EVKey flush
+        # the composed character before we read the text.
+        self._input.bind("<Return>",       self._on_enter, add="+")
+        # Ctrl+Enter inserts a newline for multi-line messages
+        self._input.bind("<Control-Return>", lambda e: self._input.insert("insert", "\n"))
 
         self._send_btn = ctk.CTkButton(
             input_row,
@@ -284,7 +288,9 @@ class ChatTab(ctk.CTkFrame):
         if self._ime_composing:
             return          # let IME use Enter to confirm the composition
         self._send()
-        return "break"      # suppress the newline Enter would normally insert
+        # Do NOT return "break" — let the default handler run so Unikey/EVKey
+        # can flush any pending composed character. _send() clears the box,
+        # so the newline the default handler inserts is immediately deleted.
 
     def _send(self):
         if self._streaming:
