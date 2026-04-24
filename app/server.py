@@ -113,9 +113,19 @@ class ServerManager:
         with self._lock:
             if self._ovms_proc and self._ovms_proc.poll() is None:
                 return True, "OVMS already running."
+            # Already healthy (started externally via start-ovms.bat)
+            if self._ovms_healthy:
+                return True, "OVMS already running (external process)."
         try:
             env = self._build_ovms_env()
-            log_fh = open(cfg.ovms_log, "a", encoding="utf-8")
+            # Use a GUI-specific log to avoid colliding with an external OVMS process
+            gui_log = cfg.ovms_log.replace("ovms-server.log", "ovms-gui.log") \
+                      if "ovms-server.log" in cfg.ovms_log else cfg.ovms_log + ".gui"
+            try:
+                log_fh = open(gui_log, "a", encoding="utf-8")
+            except PermissionError:
+                import tempfile
+                log_fh = open(tempfile.mktemp(suffix="-ovms.log"), "w", encoding="utf-8")
             cmd = [
                 cfg.ovms_exe,
                 "--config_path", str(cfg.config_json),

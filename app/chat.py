@@ -196,8 +196,9 @@ class ChatTab(ctk.CTkFrame):
             wrap="word",
         )
         self._input.pack(side="left", fill="both", expand=True, padx=(12, 6), pady=10)
-        self._input.bind("<Return>", self._on_enter)
-        self._input.bind("<Shift-Return>", lambda e: None)  # allow newline with Shift
+        # Bind on the inner tk.Text widget — CTkTextbox doesn't propagate bindings
+        self._input._textbox.bind("<Return>", self._on_enter)
+        self._input._textbox.bind("<Shift-Return>", lambda e: "break")
 
         self._send_btn = ctk.CTkButton(
             input_row,
@@ -238,10 +239,8 @@ class ChatTab(ctk.CTkFrame):
     # ------------------------------------------------------------------
 
     def _on_enter(self, event):
-        if event.state & 0x1:   # Shift held — insert newline
-            return
         self._send()
-        return "break"          # suppress default newline
+        return "break"  # suppress the newline that Enter would insert
 
     def _send(self):
         if self._streaming:
@@ -277,11 +276,21 @@ class ChatTab(ctk.CTkFrame):
             on_error=self._on_error,
         )
 
+    def _scroll_to_bottom(self):
+        try:
+            self._scroll._parent_canvas.yview_moveto(1.0)
+        except Exception:
+            try:
+                self._scroll.update_idletasks()
+                self._scroll._parent_canvas.yview_moveto(1.0)
+            except Exception:
+                pass
+
     def _add_bubble(self, role: str, content: str) -> MessageBubble:
         bubble = MessageBubble(self._scroll, role=role, content=content)
         bubble.pack(fill="x", padx=10, pady=4)
         self._bubbles.append(bubble)
-        self._scroll._parent_canvas.yview_moveto(1.0)   # scroll to bottom
+        self._scroll_to_bottom()
         return bubble
 
     # ------------------------------------------------------------------
