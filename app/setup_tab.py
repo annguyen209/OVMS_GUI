@@ -1,5 +1,5 @@
 """
-setup_tab.py — Setup / first-run tab.
+setup_tab.py - Setup / first-run tab.
 
 Shows a checklist of required components, lets the user install missing
 ones with a single click, and streams installation output in a live log.
@@ -11,30 +11,32 @@ import customtkinter as ctk
 
 from app import installer
 
-# ── Palette ───────────────────────────────────────────────────────────────
-_BG     = "#f1f5f9"
-_CARD   = "#ffffff"
-_CARD2  = "#f8fafc"
-_BORDER = "#e2e8f0"
-_TEXT   = "#0f172a"
-_TEXT2  = "#334155"
-_MUTED  = "#94a3b8"
-_GREEN  = "#16a34a"
-_RED    = "#dc2626"
-_YELLOW = "#d97706"
-_BLUE   = "#2563eb"
+# Palette (enterprise light theme)
+_BG      = "#f3f4f6"
+_CARD    = "#ffffff"
+_CARD2   = "#f9fafb"
+_BORDER  = "#e5e7eb"
+_BORDER2 = "#d1d5db"
+_TEXT    = "#111827"
+_TEXT2   = "#374151"
+_MUTED   = "#6b7280"
+_GREEN   = "#107c10"
+_RED     = "#a4262c"
+_AMBER   = "#c55000"
+_BLUE    = "#0078d4"
+_BLUE_H  = "#106ebe"
 _CODE_BG = "#1e293b"
 _CODE_FG = "#e2e8f0"
 
 
-# ── Component row ─────────────────────────────────────────────────────────
+# Component row
 
 class _ComponentRow(ctk.CTkFrame):
 
     def __init__(self, master, name: str, check_fn, install_fn,
                  on_log, on_refresh, **kw):
         kw.setdefault("fg_color", _CARD)
-        kw.setdefault("corner_radius", 10)
+        kw.setdefault("corner_radius", 8)
         kw.setdefault("border_width", 1)
         kw.setdefault("border_color", _BORDER)
         super().__init__(master, **kw)
@@ -51,12 +53,14 @@ class _ComponentRow(ctk.CTkFrame):
         self.after(600, self.refresh)
 
     def _build(self):
-        # Status dot
-        self._canvas = tk.Canvas(self, width=14, height=14,
-                                 bg=_CARD, highlightthickness=0)
-        self._canvas.pack(side="left", padx=(14, 8), pady=14)
-        self._dot = self._canvas.create_oval(2, 2, 12, 12,
-                                             fill=_MUTED, outline="")
+        # Status indicator: small rounded CTkFrame (4x4 equivalent - use 8x8 for visibility)
+        indicator_wrap = ctk.CTkFrame(self, fg_color="transparent", width=20, height=40)
+        indicator_wrap.pack(side="left", padx=(14, 8), pady=14)
+        indicator_wrap.pack_propagate(False)
+
+        self._status_dot = ctk.CTkFrame(indicator_wrap, width=10, height=10,
+                                        fg_color=_MUTED, corner_radius=5)
+        self._status_dot.place(relx=0.5, rely=0.5, anchor="center")
 
         # Name
         ctk.CTkLabel(self, text=self._name,
@@ -65,7 +69,7 @@ class _ComponentRow(ctk.CTkFrame):
                      ).pack(side="left", fill="x", expand=True)
 
         # Status label
-        self._status_lbl = ctk.CTkLabel(self, text="Checking…",
+        self._status_lbl = ctk.CTkLabel(self, text="Checking...",
                                         font=ctk.CTkFont(size=12),
                                         text_color=_MUTED, width=130,
                                         anchor="e")
@@ -74,15 +78,17 @@ class _ComponentRow(ctk.CTkFrame):
         # Install button
         self._btn = ctk.CTkButton(self, text="Install", width=90, height=30,
                                   font=ctk.CTkFont(size=12),
+                                  fg_color=_BLUE, hover_color=_BLUE_H,
+                                  text_color="#ffffff",
                                   command=self._install)
         self._btn.pack(side="right", padx=14, pady=10)
 
     def refresh(self):
-        """Kick off a background check — never blocks the main thread."""
+        """Kick off a background check - never blocks the main thread."""
         if self._busy:
             return
-        self._status_lbl.configure(text="Checking…", text_color=_MUTED)
-        self._canvas.itemconfigure(self._dot, fill=_MUTED)
+        self._status_lbl.configure(text="Checking...", text_color=_MUTED)
+        self._status_dot.configure(fg_color=_MUTED)
         threading.Thread(target=self._check_bg, daemon=True).start()
 
     def _check_bg(self):
@@ -94,25 +100,27 @@ class _ComponentRow(ctk.CTkFrame):
 
     def _apply_result(self, ok: bool):
         if ok:
-            self._canvas.itemconfigure(self._dot, fill=_GREEN)
+            self._status_dot.configure(fg_color=_GREEN)
             self._status_lbl.configure(text="Installed", text_color=_GREEN)
-            self._btn.configure(state="disabled", fg_color=_BORDER,
-                                text_color=_MUTED, text="✓ Done")
+            self._btn.configure(state="disabled", fg_color=_CARD2,
+                                border_width=1, border_color=_BORDER2,
+                                text_color=_MUTED, text="Done")
         else:
-            self._canvas.itemconfigure(self._dot, fill=_RED)
+            self._status_dot.configure(fg_color=_RED)
             self._status_lbl.configure(text="Not found", text_color=_RED)
             if not self._busy:
                 self._btn.configure(state="normal", fg_color=_BLUE,
+                                    hover_color=_BLUE_H,
                                     text_color="#ffffff", text="Install")
 
     def _install(self):
         if self._busy:
             return
         self._busy = True
-        self._btn.configure(state="disabled", text="Installing…",
-                            fg_color=_YELLOW, text_color="#ffffff")
-        self._canvas.itemconfigure(self._dot, fill=_YELLOW)
-        self._status_lbl.configure(text="Installing…", text_color=_YELLOW)
+        self._btn.configure(state="disabled", text="Installing...",
+                            fg_color=_AMBER, text_color="#ffffff")
+        self._status_dot.configure(fg_color=_AMBER)
+        self._status_lbl.configure(text="Installing...", text_color=_AMBER)
 
         def _done(ok: bool, msg: str):
             self._busy = False
@@ -122,7 +130,7 @@ class _ComponentRow(ctk.CTkFrame):
         self._install_fn(self._on_log, _done)
 
 
-# ── Setup Tab ─────────────────────────────────────────────────────────────
+# Setup Tab
 
 class SetupTab(ctk.CTkFrame):
 
@@ -136,7 +144,7 @@ class SetupTab(ctk.CTkFrame):
 
     def _build_ui(self):
         # Header card
-        header_card = ctk.CTkFrame(self, fg_color=_CARD, corner_radius=14,
+        header_card = ctk.CTkFrame(self, fg_color=_CARD, corner_radius=8,
                                    border_width=1, border_color=_BORDER)
         header_card.pack(fill="x", padx=20, pady=(20, 0))
 
@@ -147,7 +155,7 @@ class SetupTab(ctk.CTkFrame):
                      text_color=_TEXT).pack(side="left")
         self._all_badge = ctk.CTkLabel(hdr, text="",
                                        font=ctk.CTkFont(size=11, weight="bold"),
-                                       fg_color="#dcfce7", text_color=_GREEN,
+                                       fg_color="#f0fdf4", text_color=_GREEN,
                                        corner_radius=6, padx=8, pady=2)
         self._all_badge.pack(side="left", padx=10)
 
@@ -166,7 +174,8 @@ class SetupTab(ctk.CTkFrame):
         self._install_all_btn = ctk.CTkButton(
             btn_row, text="Install All", width=140, height=38,
             font=ctk.CTkFont(size=13, weight="bold"),
-            fg_color=_BLUE, hover_color="#1d4ed8",
+            fg_color=_BLUE, hover_color=_BLUE_H,
+            text_color="#ffffff",
             command=self._install_all,
         )
         self._install_all_btn.pack(side="left")
@@ -185,13 +194,13 @@ class SetupTab(ctk.CTkFrame):
             ("Python 3.12 venv",
              installer.check_venv,
              installer.install_venv),
-            ("OpenVINO packages  (openvino, openvino-genai)",
+            ("OpenVINO packages (openvino, openvino-genai)",
              installer.check_openvino,
              installer.install_openvino),
-            ("Proxy & GUI dependencies  (fastapi, httpx, customtkinter…)",
+            ("Proxy and GUI dependencies (fastapi, httpx, customtkinter...)",
              installer.check_proxy_deps,
              lambda log, done: installer.install_all_pip(log, done)),
-            ("OVMS binary  (ovms.exe)",
+            ("OVMS binary (ovms.exe)",
              installer.check_ovms,
              installer.install_ovms),
         ]
@@ -222,24 +231,25 @@ class SetupTab(ctk.CTkFrame):
             wrap="word",
             state="disabled",
             height=180,
-            corner_radius=10,
+            corner_radius=8,
         )
         self._log_box.pack(fill="x", padx=20, pady=(0, 20))
         self._append_log("Ready. Click Install or Install All to begin.")
 
-    # ── Actions ───────────────────────────────────────────────────────────
+    # Actions
 
     def _install_all(self):
-        self._install_all_btn.configure(state="disabled", text="Installing…",
-                                        fg_color=_YELLOW)
-        self._global_status.configure(text="Running full install…",
-                                      text_color=_YELLOW)
+        self._install_all_btn.configure(state="disabled", text="Installing...",
+                                        fg_color=_AMBER)
+        self._global_status.configure(text="Running full install...",
+                                      text_color=_AMBER)
 
         def _done(ok: bool, msg: str):
             def _ui():
                 self._install_all_btn.configure(state="normal",
                                                 text="Install All",
-                                                fg_color=_BLUE)
+                                                fg_color=_BLUE,
+                                                hover_color=_BLUE_H)
                 self._global_status.configure(
                     text=msg,
                     text_color=_GREEN if ok else _RED,
@@ -260,7 +270,7 @@ class SetupTab(ctk.CTkFrame):
         except Exception:
             pass
 
-    # ── Refresh ───────────────────────────────────────────────────────────
+    # Refresh
 
     def refresh(self):
         """Trigger background checks on all rows; aggregate result when done."""
@@ -284,15 +294,17 @@ class SetupTab(ctk.CTkFrame):
     def _apply_aggregate(self, ok: bool):
         if ok:
             self._all_badge.configure(text="All components installed",
-                                      fg_color="#dcfce7", text_color=_GREEN)
+                                      fg_color="#f0fdf4", text_color=_GREEN)
             self._install_all_btn.configure(state="disabled",
-                                            text="✓ All installed",
-                                            fg_color=_BORDER,
+                                            text="All installed",
+                                            fg_color=_CARD2,
+                                            border_width=1,
+                                            border_color=_BORDER2,
                                             text_color=_MUTED)
             if self._on_all_ok:
                 self._on_all_ok()
         else:
             self._all_badge.configure(
-                text="Checking components…",
-                fg_color="#fef9c3", text_color=_AMBER,
+                text="Checking components...",
+                fg_color="#fff7ed", text_color=_AMBER,
             )

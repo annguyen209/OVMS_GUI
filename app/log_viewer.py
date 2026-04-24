@@ -1,5 +1,5 @@
 """
-log_viewer.py — Scrollable log tail widget.
+log_viewer.py - Scrollable log tail widget.
 
 Provides a reusable CTkTextbox-based widget that tails a log file
 and refreshes itself on a configurable interval.
@@ -15,6 +15,10 @@ logger = logging.getLogger(__name__)
 
 _TAIL_LINES = 20          # number of lines to show
 _REFRESH_MS  = 2000       # milliseconds between refreshes
+
+_CARD2   = "#f9fafb"   # secondary surfaces (gray-50)
+_TEXT2   = "#374151"   # secondary text (gray-700)
+_BORDER  = "#e5e7eb"   # borders (gray-200)
 
 
 class LogViewerWidget(ctk.CTkFrame):
@@ -77,10 +81,10 @@ class LogViewerWidget(ctk.CTkFrame):
             wrap="word",
             font=ctk.CTkFont(family="Consolas", size=11),
             state="disabled",
-            fg_color="#f8fafc",
-            text_color="#334155",
+            fg_color=_CARD2,
+            text_color=_TEXT2,
             border_width=1,
-            border_color="#e2e8f0",
+            border_color=_BORDER,
         )
         self._textbox.pack(fill="both", expand=True, padx=4, pady=4)
 
@@ -133,7 +137,7 @@ class LogViewerWidget(ctk.CTkFrame):
         if size == 0:
             return ["[Log file is empty]"]
 
-        # Read from the end – chunk approach for large files
+        # Read from the end - chunk approach for large files
         chunk_size = min(size, 32 * 1024)  # read at most 32 KB from the end
         with open(self._log_path, "rb") as fh:
             fh.seek(-chunk_size, 2)

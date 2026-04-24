@@ -1,5 +1,5 @@
 """
-chat.py — Chat tab for testing the active model via the proxy endpoint.
+chat.py - Chat tab for testing the active model via the proxy endpoint.
 
 Connects to http://localhost:{proxy_port}/v3/chat/completions with streaming.
 """
@@ -18,14 +18,23 @@ from app.models import read_active_model_name
 
 logger = logging.getLogger(__name__)
 
-_GREEN  = "#16a34a"
-_RED    = "#dc2626"
-_YELLOW = "#d97706"
-_GRAY   = "#64748b"
-_USER_BG   = "#eff6ff"   # blue-50
+_GREEN   = "#107c10"
+_RED     = "#a4262c"
+_AMBER   = "#c55000"
+_MUTED   = "#6b7280"
+_TEXT    = "#111827"
+_TEXT2   = "#374151"
+_BLUE    = "#0078d4"
+_BLUE_H  = "#106ebe"
+_BORDER  = "#e5e7eb"
+_BORDER2 = "#d1d5db"
+_CARD    = "#ffffff"
+_CARD2   = "#f9fafb"
+
+_USER_BG   = "#eff6ff"   # very light blue
 _ASSIST_BG = "#ffffff"   # white
-_SYSTEM_BG = "#faf5ff"   # purple-50
-_CHAT_BG   = "#f1f5f9"   # slate-100
+_SYSTEM_BG = "#f9fafb"   # gray-50
+_CHAT_BG   = "#f3f4f6"   # gray-100
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +79,7 @@ def stream_chat(
                             continue
             on_done()
         except httpx.ConnectError:
-            on_error("Cannot connect — is the proxy running on port "
+            on_error("Cannot connect. Is the proxy running on port "
                      f"{cfg.proxy_port}? Start the stack first.")
         except Exception as exc:
             on_error(str(exc))
@@ -88,18 +97,18 @@ class MessageBubble(ctk.CTkFrame):
     def __init__(self, master, role: str, content: str = "", **kwargs):
         bg = {"user": _USER_BG, "assistant": _ASSIST_BG, "system": _SYSTEM_BG}.get(role, _ASSIST_BG)
         kwargs.setdefault("fg_color", bg)
-        kwargs.setdefault("corner_radius", 10)
+        kwargs.setdefault("corner_radius", 8)
         super().__init__(master, **kwargs)
 
-        role_colors = {"user": "#2563eb", "assistant": "#16a34a", "system": "#7c3aed"}
-        border_colors = {"user": "#bfdbfe", "assistant": "#bbf7d0", "system": "#e9d5ff"}
+        role_colors   = {"user": _BLUE,  "assistant": _GREEN, "system": _TEXT2}
+        border_colors = {"user": "#bfdbfe", "assistant": "#bbf7d0", "system": _BORDER}
         self.configure(border_width=1,
-                       border_color=border_colors.get(role, "#e2e8f0"))
+                       border_color=border_colors.get(role, _BORDER))
         ctk.CTkLabel(
             self,
             text=role.capitalize(),
             font=ctk.CTkFont(size=10, weight="bold"),
-            text_color=role_colors.get(role, "#64748b"),
+            text_color=role_colors.get(role, _MUTED),
             anchor="w",
         ).pack(anchor="w", padx=14, pady=(10, 2))
 
@@ -108,7 +117,7 @@ class MessageBubble(ctk.CTkFrame):
             self,
             textvariable=self._text_var,
             font=ctk.CTkFont(size=13),
-            text_color="#0f172a",
+            text_color=_TEXT,
             anchor="w",
             justify="left",
             wraplength=700,
@@ -145,32 +154,36 @@ class ChatTab(ctk.CTkFrame):
 
     def _build_ui(self):
         # ---- Top bar ----
-        top = ctk.CTkFrame(self, fg_color="#ffffff", corner_radius=0, height=48,
-                           border_width=1, border_color="#e2e8f0")
+        top = ctk.CTkFrame(self, fg_color=_CARD, corner_radius=0, height=48,
+                           border_width=1, border_color=_BORDER)
         top.pack(fill="x")
         top.pack_propagate(False)
 
         ctk.CTkLabel(top, text="Model:", font=ctk.CTkFont(size=12),
-                     text_color="#64748b").pack(side="left", padx=(14, 4), pady=12)
+                     text_color=_MUTED).pack(side="left", padx=(14, 4), pady=12)
 
         self._model_entry = ctk.CTkEntry(top, font=ctk.CTkFont(size=12), width=280, height=30)
         self._model_entry.pack(side="left", pady=9)
         self._refresh_model_name()
 
         ctk.CTkButton(
-            top, text="↺", width=32, height=30, font=ctk.CTkFont(size=14),
-            fg_color="transparent", hover_color="#f1f5f9", text_color="#64748b",
+            top, text="Refresh", width=60, height=30, font=ctk.CTkFont(size=11),
+            fg_color=_CARD2, hover_color=_BORDER,
+            border_width=1, border_color=_BORDER2,
+            text_color=_TEXT2,
             command=self._refresh_model_name,
         ).pack(side="left", padx=4)
 
         ctk.CTkButton(
             top, text="Clear", width=70, height=30, font=ctk.CTkFont(size=12),
-            fg_color="#f1f5f9", hover_color="#e2e8f0", text_color="#334155",
+            fg_color=_CARD2, hover_color=_BORDER,
+            border_width=1, border_color=_BORDER2,
+            text_color=_TEXT2,
             command=self._clear,
         ).pack(side="right", padx=14)
 
         ctk.CTkLabel(top, text="System prompt:", font=ctk.CTkFont(size=12),
-                     text_color="#64748b").pack(side="right", padx=(0, 4))
+                     text_color=_MUTED).pack(side="right", padx=(0, 4))
 
         self._sys_entry = ctk.CTkEntry(top, font=ctk.CTkFont(size=12), width=240, height=30,
                                        placeholder_text="Optional system message")
@@ -183,13 +196,13 @@ class ChatTab(ctk.CTkFrame):
         # ---- Status bar ----
         self._status = ctk.CTkLabel(
             self, text="", font=ctk.CTkFont(size=11),
-            text_color="#64748b", anchor="w", height=22,
+            text_color=_MUTED, anchor="w", height=22,
         )
         self._status.pack(fill="x", padx=14)
 
         # ---- Input row ----
-        input_row = ctk.CTkFrame(self, fg_color="#ffffff", corner_radius=0, height=72,
-                                 border_width=1, border_color="#e2e8f0")
+        input_row = ctk.CTkFrame(self, fg_color=_CARD, corner_radius=0, height=72,
+                                 border_width=1, border_color=_BORDER)
         input_row.pack(fill="x", side="bottom")
         input_row.pack_propagate(False)
 
@@ -197,14 +210,14 @@ class ChatTab(ctk.CTkFrame):
             input_row,
             font=ctk.CTkFont(size=13),
             height=52,
-            fg_color="#f8fafc",
+            fg_color=_CARD2,
             border_width=1,
-            border_color="#e2e8f0",
-            text_color="#0f172a",
+            border_color=_BORDER,
+            text_color=_TEXT,
             wrap="word",
         )
         self._input.pack(side="left", fill="both", expand=True, padx=(12, 6), pady=10)
-        # Bind on the inner tk.Text widget — CTkTextbox doesn't propagate bindings
+        # Bind on the inner tk.Text widget - CTkTextbox doesn't propagate bindings
         self._input._textbox.bind("<Return>", self._on_enter)
         self._input._textbox.bind("<Shift-Return>", lambda e: "break")
 
@@ -214,6 +227,9 @@ class ChatTab(ctk.CTkFrame):
             width=80,
             height=50,
             font=ctk.CTkFont(size=13, weight="bold"),
+            fg_color=_BLUE,
+            hover_color=_BLUE_H,
+            text_color="#ffffff",
             command=self._send,
         )
         self._send_btn.pack(side="right", padx=(0, 12), pady=10)
@@ -273,8 +289,8 @@ class ChatTab(ctk.CTkFrame):
         # Placeholder bubble for the streaming response
         self._active_bubble = self._add_bubble("assistant", "")
         self._streaming = True
-        self._send_btn.configure(state="disabled", text="…")
-        self._status.configure(text="Generating…", text_color=_YELLOW)
+        self._send_btn.configure(state="disabled", text="...")
+        self._status.configure(text="Generating...", text_color=_AMBER)
 
         stream_chat(
             messages=self._messages,
@@ -302,7 +318,7 @@ class ChatTab(ctk.CTkFrame):
         return bubble
 
     # ------------------------------------------------------------------
-    # Streaming callbacks (called from background thread → use .after)
+    # Streaming callbacks (called from background thread - use .after)
     # ------------------------------------------------------------------
 
     def _on_chunk(self, text: str):
@@ -319,7 +335,7 @@ class ChatTab(ctk.CTkFrame):
     def _finish(self):
         self._streaming = False
         self._send_btn.configure(state="normal", text="Send")
-        self._status.configure(text="", text_color="#888899")
+        self._status.configure(text="", text_color=_MUTED)
 
         # Record the full assistant response in history
         if self._active_bubble:

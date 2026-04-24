@@ -1,5 +1,5 @@
 """
-guide.py — Integration guide tab.
+guide.py - Integration guide tab.
 
 Shows users how to connect to the running OVMS endpoint via:
   - Direct REST API  (curl, Python OpenAI SDK, JS/TS)
@@ -15,23 +15,25 @@ import customtkinter as ctk
 from app.config import cfg
 from app.models import read_active_model_name
 
-# ── Palette (mirrors light theme in gui.py) ───────────────────────────────
-_BG      = "#f1f5f9"
+# Palette (enterprise light theme)
+_BG      = "#f3f4f6"
 _CARD    = "#ffffff"
-_BORDER  = "#e2e8f0"
-_TEXT    = "#0f172a"
-_TEXT2   = "#334155"
-_MUTED   = "#94a3b8"
-_GREEN   = "#16a34a"
-_BLUE    = "#2563eb"
-_CODE_BG = "#1e293b"   # dark slate — code block bg
+_CARD2   = "#f9fafb"
+_BORDER  = "#e5e7eb"
+_BORDER2 = "#d1d5db"
+_TEXT    = "#111827"
+_TEXT2   = "#374151"
+_MUTED   = "#6b7280"
+_GREEN   = "#107c10"
+_BLUE    = "#0078d4"
+_BLUE_H  = "#106ebe"
+_CODE_BG = "#1e293b"   # dark slate - code block bg
 _CODE_FG = "#e2e8f0"   # light text on dark code block
-_TAG_BLUE   = "#dbeafe"
-_TAG_GREEN  = "#dcfce7"
-_TAG_PURPLE = "#ede9fe"
+_TAG_BLUE  = "#dbeafe"
+_TAG_GREEN = "#dcfce7"
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────
+# Helpers
 
 def _active_model() -> str:
     return read_active_model_name() or "qwen2.5-coder-7b"
@@ -40,14 +42,13 @@ def _base_url() -> str:
     return f"http://localhost:{cfg.proxy_port}/v3"
 
 
-# ── Reusable widgets ──────────────────────────────────────────────────────
+# Reusable widgets
 
 class _Tag(ctk.CTkLabel):
     """Small pill badge."""
     _COLORS = {
-        "blue":   (_TAG_BLUE,   _BLUE),
-        "green":  (_TAG_GREEN,  _GREEN),
-        "purple": (_TAG_PURPLE, "#7c3aed"),
+        "blue":  (_TAG_BLUE,  _BLUE),
+        "green": (_TAG_GREEN, _GREEN),
     }
 
     def __init__(self, master, text: str, color: str = "blue", **kw):
@@ -59,12 +60,12 @@ class _Tag(ctk.CTkLabel):
 
 
 class _SectionCard(ctk.CTkFrame):
-    """Titled section card with a left accent bar."""
+    """Titled section card."""
 
     def __init__(self, master, title: str, subtitle: str = "",
                  tags: list[tuple[str, str]] | None = None, **kw):
         kw.setdefault("fg_color", _CARD)
-        kw.setdefault("corner_radius", 14)
+        kw.setdefault("corner_radius", 8)
         kw.setdefault("border_width", 1)
         kw.setdefault("border_color", _BORDER)
         super().__init__(master, **kw)
@@ -79,14 +80,16 @@ class _SectionCard(ctk.CTkFrame):
 
         if tags:
             for t, c in tags:
-                _Tag(hdr, t, c).pack(side="left", padx=(8, 0))
+                # Map any unsupported colors to nearest supported variant
+                mapped = c if c in ("blue", "green") else "blue"
+                _Tag(hdr, t, mapped).pack(side="left", padx=(8, 0))
 
         if subtitle:
             ctk.CTkLabel(self, text=subtitle,
                          font=ctk.CTkFont(size=12), text_color=_MUTED,
                          anchor="w", wraplength=860).pack(fill="x", padx=18, pady=(0, 10))
 
-        # Content area — children should pack into self
+        # Content area - children should pack into self
         self._body = ctk.CTkFrame(self, fg_color="transparent")
         self._body.pack(fill="x", padx=18, pady=(0, 16))
 
@@ -100,8 +103,8 @@ class _CodeBlock(ctk.CTkFrame):
 
     def __init__(self, master, label: str, code_fn, **kw):
         """
-        label   — displayed above the block
-        code_fn — callable() → str  so values update when tab is opened
+        label   - displayed above the block
+        code_fn - callable() -> str  so values update when tab is opened
         """
         kw.setdefault("fg_color", "transparent")
         super().__init__(master, **kw)
@@ -115,7 +118,7 @@ class _CodeBlock(ctk.CTkFrame):
                      text_color=_TEXT2).pack(side="left")
 
         # Code frame
-        code_frame = ctk.CTkFrame(self, fg_color=_CODE_BG, corner_radius=10)
+        code_frame = ctk.CTkFrame(self, fg_color=_CODE_BG, corner_radius=8)
         code_frame.pack(fill="x")
 
         self._textbox = ctk.CTkTextbox(
@@ -155,7 +158,7 @@ class _CodeBlock(ctk.CTkFrame):
     def _copy(self):
         self.clipboard_clear()
         self.clipboard_append(self._code_fn())
-        self._copied_lbl.configure(text="✓ Copied!")
+        self._copied_lbl.configure(text="Copied")
         self.after(2000, lambda: self._copied_lbl.configure(text=""))
 
 
@@ -180,7 +183,7 @@ class _Step(ctk.CTkFrame):
                      wraplength=800).pack(side="left", padx=(10, 0), pady=4)
 
 
-# ── Guide Tab ─────────────────────────────────────────────────────────────
+# Guide Tab
 
 class GuideTab(ctk.CTkFrame):
 
@@ -203,7 +206,7 @@ class GuideTab(ctk.CTkFrame):
         self._build_continue(inner)
         self._build_opencode(inner)
 
-    # ── Overview ──────────────────────────────────────────────────────────
+    # Overview
 
     def _build_overview(self, parent):
         card = _SectionCard(parent, "Quick Reference",
@@ -219,7 +222,7 @@ class GuideTab(ctk.CTkFrame):
             ("Base URL",    _base_url,     _BLUE),
             ("Active Model", _active_model, _GREEN),
         ]):
-            f = ctk.CTkFrame(row, fg_color=_BG, corner_radius=10,
+            f = ctk.CTkFrame(row, fg_color=_CARD2, corner_radius=8,
                              border_width=1, border_color=_BORDER)
             f.grid(row=0, column=col, padx=(0 if col else 0, 6 if col == 0 else 0), sticky="ew")
             ctk.CTkLabel(f, text=lbl, font=ctk.CTkFont(size=10, weight="bold"),
@@ -231,7 +234,7 @@ class GuideTab(ctk.CTkFrame):
             # Keep var refreshable
             setattr(self, f"_var_{col}", (var, fn))
 
-    # ── REST API ──────────────────────────────────────────────────────────
+    # REST API
 
     def _build_api(self, parent):
         card = _SectionCard(
@@ -252,7 +255,7 @@ class GuideTab(ctk.CTkFrame):
     "max_tokens": 512,
     "stream": false
   }}'"""),
-            ("Python — openai SDK",
+            ("Python - openai SDK",
              lambda: f"""from openai import OpenAI
 
 client = OpenAI(
@@ -266,7 +269,7 @@ response = client.chat.completions.create(
     max_tokens=512,
 )
 print(response.choices[0].message.content)"""),
-            ("Python — streaming",
+            ("Python - streaming",
              lambda: f"""from openai import OpenAI
 
 client = OpenAI(base_url="{_base_url()}", api_key="unused")
@@ -299,23 +302,23 @@ console.log(response.choices[0].message.content);"""),
             cb.pack(fill="x", pady=(0, 4))
             self._code_blocks.append(cb)
 
-    # ── Continue.dev ──────────────────────────────────────────────────────
+    # Continue.dev
 
     def _build_continue(self, parent):
         card = _SectionCard(
-            parent, "Continue.dev  —  VS Code Extension",
+            parent, "Continue.dev - VS Code Extension",
             subtitle="AI-powered code completion and chat inside VS Code. "
                      "Supports inline autocomplete, chat, and edit modes.",
-            tags=[("VS Code", "blue"), ("Autocomplete", "green"), ("Chat", "purple")],
+            tags=[("VS Code", "blue"), ("Autocomplete", "green"), ("Chat", "blue")],
         )
         card.pack(fill="x", pady=(0, 12))
 
         steps = [
-            "Open VS Code → Extensions (Ctrl+Shift+X) → search 'Continue' → Install.",
+            "Open VS Code. Extensions (Ctrl+Shift+X). Search 'Continue'. Install.",
             "Click the Continue icon in the sidebar, then open its settings.",
-            "Select 'Open config file' (or press Ctrl+Shift+P → 'Continue: Open config').",
+            "Select 'Open config file' (or press Ctrl+Shift+P. Continue: Open config).",
             "Replace (or merge) the content with the YAML below, then save.",
-            "The model appears in Continue's model picker immediately — no restart needed.",
+            "The model appears in Continue's model picker immediately. No restart needed.",
         ]
         for i, s in enumerate(steps, 1):
             _Step(card.body, i, s).pack(fill="x", pady=2)
@@ -357,31 +360,37 @@ context:
         self._code_blocks.append(cb)
 
         note = ctk.CTkFrame(card.body, fg_color="#eff6ff", corner_radius=8,
-                            border_width=1, border_color="#bfdbfe")
+                            border_width=1, border_color="#1d4ed8")
         note.pack(fill="x", pady=(10, 0))
-        ctk.CTkLabel(note,
-                     text="💡  Tip: apiBase uses port 8001 (the proxy) so max_tokens is "
-                          "automatically clamped to fit within the model's context window.",
-                     font=ctk.CTkFont(size=11), text_color="#1e40af",
-                     anchor="w", wraplength=840, justify="left",
-                     ).pack(anchor="w", padx=12, pady=8)
 
-    # ── OpenCode ──────────────────────────────────────────────────────────
+        note_inner = ctk.CTkFrame(note, fg_color="transparent")
+        note_inner.pack(fill="x", padx=12, pady=8)
+        ctk.CTkLabel(note_inner, text="Note:",
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color="#1d4ed8").pack(side="left", padx=(0, 6))
+        ctk.CTkLabel(note_inner,
+                     text="apiBase uses port 8001 (the proxy) so max_tokens is "
+                          "automatically clamped to fit within the model's context window.",
+                     font=ctk.CTkFont(size=11), text_color="#1d4ed8",
+                     anchor="w", wraplength=800, justify="left",
+                     ).pack(side="left", fill="x", expand=True)
+
+    # OpenCode
 
     def _build_opencode(self, parent):
         card = _SectionCard(
-            parent, "OpenCode  —  Terminal AI Coding Agent",
+            parent, "OpenCode - Terminal AI Coding Agent",
             subtitle="A terminal-based AI coding assistant. "
                      "Reads your codebase, edits files, and runs commands autonomously.",
-            tags=[("Terminal", "blue"), ("Agent", "purple")],
+            tags=[("Terminal", "blue"), ("Agent", "green")],
         )
         card.pack(fill="x", pady=(0, 12))
 
         steps = [
-            "Install OpenCode — see opencode.ai for the latest installer.",
+            "Install OpenCode. See opencode.ai for the latest installer.",
             "Create or edit the global config file shown below.",
             'Run "opencode" in your project directory, then press "/" to pick the model.',
-            "Select  OVMS Local → " + _active_model() + "  from the list.",
+            "Select OVMS Local and " + _active_model() + " from the list.",
         ]
         for i, s in enumerate(steps, 1):
             _Step(card.body, i, s).pack(fill="x", pady=2)
@@ -412,16 +421,22 @@ context:
         self._code_blocks.append(cb)
 
         note = ctk.CTkFrame(card.body, fg_color="#f0fdf4", corner_radius=8,
-                            border_width=1, border_color="#bbf7d0")
+                            border_width=1, border_color="#166534")
         note.pack(fill="x", pady=(10, 0))
-        ctk.CTkLabel(note,
-                     text="💡  Tip: contextLength and maxTokens tell OpenCode how much "
+
+        note_inner = ctk.CTkFrame(note, fg_color="transparent")
+        note_inner.pack(fill="x", padx=12, pady=8)
+        ctk.CTkLabel(note_inner, text="Note:",
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color="#166534").pack(side="left", padx=(0, 6))
+        ctk.CTkLabel(note_inner,
+                     text="contextLength and maxTokens tell OpenCode how much "
                           "room the model has, preventing the 'exceeds max length' error.",
                      font=ctk.CTkFont(size=11), text_color="#166534",
-                     anchor="w", wraplength=840, justify="left",
-                     ).pack(anchor="w", padx=12, pady=8)
+                     anchor="w", wraplength=800, justify="left",
+                     ).pack(side="left", fill="x", expand=True)
 
-    # ── Lifecycle ─────────────────────────────────────────────────────────
+    # Lifecycle
 
     def on_show(self):
         """Call when the tab becomes visible to refresh dynamic values."""

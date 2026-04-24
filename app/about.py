@@ -1,5 +1,5 @@
 """
-about.py — About tab.
+about.py - About tab.
 
 Explains OpenVINO, OVMS, and this application.
 Detects and shows available hardware (CPU / GPU / NPU).
@@ -13,29 +13,32 @@ from pathlib import Path
 
 from app.config import cfg
 
-_BG     = "#f1f5f9"
-_CARD   = "#ffffff"
-_CARD2  = "#f8fafc"
-_BORDER = "#e2e8f0"
-_TEXT   = "#0f172a"
-_TEXT2  = "#334155"
-_MUTED  = "#94a3b8"
-_GREEN  = "#16a34a"
-_BLUE   = "#2563eb"
-_PURPLE = "#7c3aed"
-_AMBER  = "#d97706"
+_BG      = "#f3f4f6"
+_CARD    = "#ffffff"
+_CARD2   = "#f9fafb"
+_BORDER  = "#e5e7eb"
+_BORDER2 = "#d1d5db"
+_TEXT    = "#111827"
+_TEXT2   = "#374151"
+_MUTED   = "#6b7280"
+_GREEN   = "#107c10"
+_BLUE    = "#0078d4"
+_BLUE_H  = "#106ebe"
+_RED     = "#a4262c"
+_AMBER   = "#c55000"
+_BANNER  = "#1b1f23"
 
 APP_VERSION = "1.0.0"
 APP_AUTHOR  = "anzdev4life"
 APP_REPO    = "github.com/annguyen209/OVMS_GUI"
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────
+# Helpers
 
 _DESCRIPTIONS = {
-    "CPU": "General-purpose inference — always available, any model",
-    "GPU": "Arc iGPU — best throughput, shared system RAM as VRAM",
-    "NPU": "Intel AI Boost — lowest power draw, ideal for always-on tasks",
+    "CPU": "General-purpose inference - always available, any model",
+    "GPU": "Arc iGPU - best throughput, shared system RAM as VRAM",
+    "NPU": "Intel AI Boost - lowest power draw, ideal for always-on tasks",
 }
 
 
@@ -44,12 +47,12 @@ def _detect_devices() -> list[tuple[str, str, str]]:
     Returns list of (device_token, full_name, description).
 
     Strategy (fastest first):
-    1. Parse the OVMS log — server already printed the device list,
+    1. Parse the OVMS log - server already printed the device list,
        so this is an instant file read with no OpenVINO cold-start.
     2. Direct import of openvino in-process (already loaded in this venv).
     3. Return a placeholder on total failure.
     """
-    # ── 1. Read from OVMS log ────────────────────────────────────────────
+    # 1. Read from OVMS log
     try:
         log = Path(cfg.ovms_log)
         if log.is_file():
@@ -63,7 +66,6 @@ def _detect_devices() -> list[tuple[str, str, str]]:
                     names: dict[str, str] = {}
                     for l2 in text.splitlines():
                         for tok in tokens:
-                            # e.g. "CPU: Intel(R) Core..."
                             n = re.search(rf"{tok}:\s*(.+)", l2)
                             if n:
                                 names[tok] = n.group(1).strip()
@@ -74,7 +76,7 @@ def _detect_devices() -> list[tuple[str, str, str]]:
     except Exception:
         pass
 
-    # ── 2. Direct import (openvino is in this venv, no subprocess needed) ─
+    # 2. Direct import (openvino is in this venv, no subprocess needed)
     try:
         import openvino as ov
         core = ov.Core()
@@ -86,20 +88,20 @@ def _detect_devices() -> list[tuple[str, str, str]]:
     except Exception:
         pass
 
-    return [("?", "Could not detect — start the OVMS stack first.", "")]
+    return [("?", "Could not detect. Start the OVMS stack first.", "")]
 
 
-# ── Reusable card ─────────────────────────────────────────────────────────
+# Reusable card
 
 class _Card(ctk.CTkFrame):
     def __init__(self, master, **kw):
         kw.setdefault("fg_color", _CARD)
-        kw.setdefault("corner_radius", 14)
+        kw.setdefault("corner_radius", 8)
         kw.setdefault("border_width", 1)
         kw.setdefault("border_color", _BORDER)
         super().__init__(master, **kw)
 
-    def add_heading(self, text: str, color: str = _TEXT):
+    def add_heading(self, text: str, color: str = _BLUE):
         ctk.CTkLabel(self, text=text,
                      font=ctk.CTkFont(size=14, weight="bold"),
                      text_color=color, anchor="w",
@@ -119,7 +121,7 @@ class _Card(ctk.CTkFrame):
         return self
 
 
-# ── About Tab ─────────────────────────────────────────────────────────────
+# About Tab
 
 class AboutTab(ctk.CTkFrame):
 
@@ -143,55 +145,50 @@ class AboutTab(ctk.CTkFrame):
         self._build_hardware(inner)
         self._build_app_info(inner)
 
-    # ── Hero ──────────────────────────────────────────────────────────────
+    # Hero
 
     def _build_hero(self, parent):
-        hero = ctk.CTkFrame(parent, fg_color=_TEXT, corner_radius=16)
+        hero = ctk.CTkFrame(parent, fg_color=_BANNER, corner_radius=10)
         hero.pack(fill="x", pady=(0, 14))
 
-        # Logo row
+        # Title row
         top = ctk.CTkFrame(hero, fg_color="transparent")
         top.pack(fill="x", padx=24, pady=(22, 6))
-
-        dot = tk.Canvas(top, width=16, height=16,
-                        bg=_TEXT, highlightthickness=0)
-        dot.pack(side="left", padx=(0, 12))
-        dot.create_oval(1, 1, 15, 15, fill=_GREEN, outline="")
 
         ctk.CTkLabel(top, text="OVMS Manager",
                      font=ctk.CTkFont(size=22, weight="bold"),
                      text_color="#f8fafc").pack(side="left")
 
-        ctk.CTkLabel(top, text=f"v{APP_VERSION}",
+        ctk.CTkLabel(top, text=f"  v{APP_VERSION}",
                      font=ctk.CTkFont(size=13),
-                     text_color="#64748b").pack(side="left", padx=10)
+                     text_color=_MUTED).pack(side="left", padx=10)
 
         ctk.CTkLabel(hero,
-                     text="A desktop GUI for managing OpenVINO Model Server — "
-                          "download models, start the server, and connect your "
+                     text="A desktop GUI for managing OpenVINO Model Server. "
+                          "Download models, start the server, and connect your "
                           "IDE to a local AI backend running entirely on your Intel hardware.",
-                     font=ctk.CTkFont(size=13), text_color="#94a3b8",
+                     font=ctk.CTkFont(size=13), text_color=_MUTED,
                      anchor="w", justify="left", wraplength=860,
                      ).pack(fill="x", padx=24, pady=(0, 20))
 
-    # ── OpenVINO explanation ──────────────────────────────────────────────
+    # OpenVINO explanation
 
     def _build_openvino(self, parent):
         card = _Card(parent)
         card.pack(fill="x", pady=(0, 12))
         card.add_heading("What is OpenVINO?", _BLUE)
         card.add_body(
-            "OpenVINO™ (Open Visual Inference and Neural network Optimization) is an "
+            "OpenVINO (Open Visual Inference and Neural network Optimization) is an "
             "open-source toolkit from Intel for optimizing and deploying AI inference. "
             "It lets you run large language models, vision models, and speech models "
-            "directly on Intel hardware — CPU, integrated GPU (Arc), or the built-in "
-            "NPU (Neural Processing Unit) — without needing a discrete GPU."
+            "directly on Intel hardware: CPU, integrated GPU (Arc), or the built-in "
+            "NPU (Neural Processing Unit) - without needing a discrete GPU."
         )
         card.add_divider()
         card.add_heading("Why OpenVINO instead of Ollama?", _BLUE)
         card.add_body(
-            "Ollama uses llama.cpp which does not support Intel Arc iGPU on Windows — "
-            "it falls back to CPU-only inference. OpenVINO is purpose-built for Intel "
+            "Ollama uses llama.cpp which does not support Intel Arc iGPU on Windows. "
+            "It falls back to CPU-only inference. OpenVINO is purpose-built for Intel "
             "silicon and can dispatch work to the Arc iGPU (shared system RAM acts as "
             "VRAM), the NPU for low-power always-on tasks, or all three devices in "
             "parallel via the AUTO device. On a machine with 32 GB RAM, this means "
@@ -204,9 +201,9 @@ class AboutTab(ctk.CTkFrame):
         for text, color, bg in [
             ("CPU inference",    "#1e40af", "#dbeafe"),
             ("Arc iGPU support", "#065f46", "#d1fae5"),
-            ("NPU support",      "#581c87", "#ede9fe"),
-            ("INT4 / INT8 quant",  "#78350f", "#fef3c7"),
-            ("Windows native",   "#1e3a5f", "#e0f2fe"),
+            ("NPU support",      "#374151", "#f3f4f6"),
+            ("INT4 / INT8 quant",  "#92400e", "#fef3c7"),
+            ("Windows native",   "#1e40af", "#dbeafe"),
         ]:
             ctk.CTkLabel(pills, text=text,
                          font=ctk.CTkFont(size=11, weight="bold"),
@@ -214,39 +211,39 @@ class AboutTab(ctk.CTkFrame):
                          corner_radius=6, padx=8, pady=3,
                          ).pack(side="left", padx=(0, 6))
 
-    # ── OVMS explanation ──────────────────────────────────────────────────
+    # OVMS explanation
 
     def _build_ovms(self, parent):
         card = _Card(parent)
         card.pack(fill="x", pady=(0, 12))
-        card.add_heading("What is OpenVINO Model Server (OVMS)?", _PURPLE)
+        card.add_heading("What is OpenVINO Model Server (OVMS)?", _BLUE)
         card.add_body(
             "OVMS is Intel's production-grade model serving binary. It wraps OpenVINO "
             "inference in an HTTP/gRPC server and exposes an OpenAI-compatible REST API "
-            "at /v3/chat/completions — the same format used by ChatGPT, Claude, and "
-            "other hosted services. This means any tool that supports a custom OpenAI "
+            "at /v3/chat/completions. This is the same format used by ChatGPT, Claude, and "
+            "other hosted services. Any tool that supports a custom OpenAI "
             "base URL (Continue.dev, OpenCode, LangChain, the openai Python SDK, curl) "
             "can talk to your local model without any code changes."
         )
         card.add_divider()
 
         # How it fits together
-        card.add_heading("How this app fits together", _PURPLE)
+        card.add_heading("How this app fits together", _BLUE)
 
         steps = [
             ("1", "OVMS loads the model onto the Arc iGPU and listens on port 8000.",  _BLUE),
-            ("2", "A thin proxy on port 8001 clamps max_tokens so requests never exceed the model's context window.", _PURPLE),
-            ("3", "Your IDE extension (Continue.dev or OpenCode) connects to localhost:8001/v3 — just like it would to the OpenAI API.", _GREEN),
+            ("2", "A thin proxy on port 8001 clamps max_tokens so requests never exceed the model's context window.", _BLUE),
+            ("3", "Your IDE extension (Continue.dev or OpenCode) connects to localhost:8001/v3 - just like it would to the OpenAI API.", _GREEN),
         ]
         for num, text, color in steps:
-            row = ctk.CTkFrame(card, fg_color=_CARD2, corner_radius=8,
+            row = ctk.CTkFrame(card, fg_color=_CARD2, corner_radius=6,
                                border_width=1, border_color=_BORDER)
             row.pack(fill="x", padx=16, pady=(0, 6))
 
             dot = tk.Canvas(row, width=28, height=28,
                             bg=_CARD2, highlightthickness=0)
             dot.pack(side="left", padx=(12, 10), pady=10)
-            dot.create_oval(2, 2, 26, 26, fill=color, outline="")
+            dot.create_oval(2, 2, 26, 26, fill=_BLUE, outline="")
             dot.create_text(14, 14, text=num, fill="white",
                             font=("Segoe UI", 11, "bold"))
 
@@ -257,7 +254,7 @@ class AboutTab(ctk.CTkFrame):
 
         ctk.CTkFrame(card, fg_color="transparent", height=8).pack()
 
-    # ── Hardware ──────────────────────────────────────────────────────────
+    # Hardware
 
     def _build_hardware(self, parent):
         card = _Card(parent)
@@ -267,14 +264,15 @@ class AboutTab(ctk.CTkFrame):
         hdr.pack(fill="x", padx=18, pady=(16, 8))
         ctk.CTkLabel(hdr, text="Detected Hardware",
                      font=ctk.CTkFont(size=14, weight="bold"),
-                     text_color=_AMBER).pack(side="left")
-        self._hw_spinner = ctk.CTkLabel(hdr, text="detecting…",
+                     text_color=_TEXT).pack(side="left")
+        self._hw_spinner = ctk.CTkLabel(hdr, text="detecting...",
                                         font=ctk.CTkFont(size=11),
                                         text_color=_MUTED)
         self._hw_spinner.pack(side="left", padx=10)
-        ctk.CTkButton(hdr, text="↺ Refresh", width=90, height=26,
+        ctk.CTkButton(hdr, text="Refresh", width=80, height=26,
                       font=ctk.CTkFont(size=11),
-                      fg_color="#f1f5f9", hover_color=_BORDER,
+                      fg_color=_CARD2, hover_color=_BORDER,
+                      border_width=1, border_color=_BORDER2,
                       text_color=_TEXT2,
                       command=self._start_detection,
                       ).pack(side="right")
@@ -286,7 +284,7 @@ class AboutTab(ctk.CTkFrame):
         # Clear previous results
         for w in self._hw_frame.winfo_children():
             w.destroy()
-        self._hw_spinner.configure(text="detecting…")
+        self._hw_spinner.configure(text="detecting...")
         threading.Thread(target=self._load_devices, daemon=True).start()
 
     def _load_devices(self):
@@ -298,21 +296,19 @@ class AboutTab(ctk.CTkFrame):
 
     def _render_devices(self, devices):
         self._hw_spinner.configure(text="")
-        colors = {"CPU": _BLUE, "GPU": _GREEN, "NPU": _PURPLE}
-        icons  = {"CPU": "⚙", "GPU": "◈", "NPU": "⚡"}
-        descs  = {
-            "CPU": "General-purpose inference — always available, any model",
-            "GPU": "Arc iGPU — best throughput, shared system RAM as VRAM",
-            "NPU": "Intel AI Boost — lowest power, ideal for always-on tasks",
+        token_labels = {"CPU": "CPU", "GPU": "GPU", "NPU": "NPU"}
+        descs = {
+            "CPU": "General-purpose inference - always available, any model",
+            "GPU": "Arc iGPU - best throughput, shared system RAM as VRAM",
+            "NPU": "Intel AI Boost - lowest power, ideal for always-on tasks",
         }
 
         for token, name, _ in devices:
-            color = colors.get(token, _MUTED)
-            icon  = icons.get(token, "•")
+            label = token_labels.get(token, token)
             desc  = descs.get(token, "")
 
             row = ctk.CTkFrame(self._hw_frame, fg_color=_CARD2,
-                               corner_radius=10, border_width=1,
+                               corner_radius=8, border_width=1,
                                border_color=_BORDER)
             row.pack(fill="x", pady=3)
 
@@ -322,12 +318,9 @@ class AboutTab(ctk.CTkFrame):
 
             title = ctk.CTkFrame(left, fg_color="transparent")
             title.pack(anchor="w")
-            ctk.CTkLabel(title, text=icon,
-                         font=ctk.CTkFont(size=15),
-                         text_color=color).pack(side="left", padx=(0, 6))
-            ctk.CTkLabel(title, text=token,
+            ctk.CTkLabel(title, text=label,
                          font=ctk.CTkFont(size=13, weight="bold"),
-                         text_color=color).pack(side="left")
+                         text_color=_BLUE).pack(side="left")
 
             ctk.CTkLabel(left, text=name,
                          font=ctk.CTkFont(family="Consolas", size=11),
@@ -340,11 +333,12 @@ class AboutTab(ctk.CTkFrame):
             # Device badge
             ctk.CTkLabel(row, text=f'device="{token}"',
                          font=ctk.CTkFont(family="Consolas", size=11),
-                         fg_color="#f1f5f9", text_color=color,
+                         fg_color=_CARD2, text_color=_BLUE,
                          corner_radius=6, padx=8, pady=4,
+                         border_width=1,
                          ).pack(side="right", padx=14)
 
-    # ── App info ──────────────────────────────────────────────────────────
+    # App info
 
     def _build_app_info(self, parent):
         card = _Card(parent)
@@ -355,10 +349,10 @@ class AboutTab(ctk.CTkFrame):
 
         for label, value, color in [
             ("Application",  "OVMS Manager",       _TEXT),
-            ("Version",      f"v{APP_VERSION}",     _BLUE),
-            ("Author",       APP_AUTHOR,             _PURPLE),
-            ("Repository",   APP_REPO,               _GREEN),
-            ("License",      "MIT",                  _MUTED),
+            ("Version",      f"v{APP_VERSION}",    _BLUE),
+            ("Author",       APP_AUTHOR,            _TEXT),
+            ("Repository",   APP_REPO,              _TEXT),
+            ("License",      "MIT",                 _TEXT),
         ]:
             col = ctk.CTkFrame(info_row, fg_color="transparent")
             col.pack(side="left", expand=True, fill="x")
