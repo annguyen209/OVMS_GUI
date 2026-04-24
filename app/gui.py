@@ -485,11 +485,10 @@ class ModelRow(ctk.CTkFrame):
             self._btn.configure(
                 text="Active",
                 state="disabled",
-                fg_color=_CARD2,
-                hover_color=_CARD2,
-                border_width=1,
-                border_color=_BLUE,
-                text_color=_BLUE,
+                fg_color=_BORDER,
+                hover_color=_BORDER,
+                border_width=0,
+                text_color=_MUTED,
             )
         elif model.is_downloaded:
             self._status_lbl.configure(text="Downloaded", text_color=_GREEN)
@@ -507,11 +506,10 @@ class ModelRow(ctk.CTkFrame):
             self._btn.configure(
                 text="Download",
                 state="normal",
-                fg_color=_CARD2,
-                hover_color=_BORDER,
-                border_width=1,
-                border_color=_BORDER2,
-                text_color=_TEXT2,
+                fg_color=_GRAY,
+                hover_color="#475569",
+                border_width=0,
+                text_color="#ffffff",
             )
 
     def _on_btn_click(self):
