@@ -47,7 +47,8 @@ class _ComponentRow(ctk.CTkFrame):
         self._busy       = False
 
         self._build()
-        self.refresh()
+        # Delay until mainloop is running before spawning check threads
+        self.after(600, self.refresh)
 
     def _build(self):
         # Status dot
@@ -77,7 +78,21 @@ class _ComponentRow(ctk.CTkFrame):
         self._btn.pack(side="right", padx=14, pady=10)
 
     def refresh(self):
+        """Kick off a background check — never blocks the main thread."""
+        if self._busy:
+            return
+        self._status_lbl.configure(text="Checking…", text_color=_MUTED)
+        self._canvas.itemconfigure(self._dot, fill=_MUTED)
+        threading.Thread(target=self._check_bg, daemon=True).start()
+
+    def _check_bg(self):
         ok = self._check_fn()
+        try:
+            self.after(0, lambda: self._apply_result(ok))
+        except RuntimeError:
+            pass  # widget destroyed or mainloop not yet running
+
+    def _apply_result(self, ok: bool):
         if ok:
             self._canvas.itemconfigure(self._dot, fill=_GREEN)
             self._status_lbl.configure(text="Installed", text_color=_GREEN)
@@ -248,13 +263,28 @@ class SetupTab(ctk.CTkFrame):
     # ── Refresh ───────────────────────────────────────────────────────────
 
     def refresh(self):
+        """Trigger background checks on all rows; aggregate result when done."""
         for row in self._rows:
             row.refresh()
+        # After all per-row background checks fire, do the aggregate check
+        # Use a delay longer than a typical subprocess call (~3 s)
+        self.after(4000, self._refresh_aggregate)
 
+    def _refresh_aggregate(self):
+        """Run aggregate all_ok() check in background, update badge."""
+        threading.Thread(target=self._aggregate_bg, daemon=True).start()
+
+    def _aggregate_bg(self):
         ok = installer.all_ok()
+        try:
+            self.after(0, lambda: self._apply_aggregate(ok))
+        except RuntimeError:
+            pass
+
+    def _apply_aggregate(self, ok: bool):
         if ok:
             self._all_badge.configure(text="All components installed",
-                                       fg_color="#dcfce7", text_color=_GREEN)
+                                      fg_color="#dcfce7", text_color=_GREEN)
             self._install_all_btn.configure(state="disabled",
                                             text="✓ All installed",
                                             fg_color=_BORDER,
@@ -262,9 +292,7 @@ class SetupTab(ctk.CTkFrame):
             if self._on_all_ok:
                 self._on_all_ok()
         else:
-            missing = sum(1 for r in self._rows
-                          if not r._check_fn())
             self._all_badge.configure(
-                text=f"{missing} component{'s' if missing > 1 else ''} missing",
-                fg_color="#fee2e2", text_color=_RED,
+                text="Checking components…",
+                fg_color="#fef9c3", text_color=_AMBER,
             )

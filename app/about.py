@@ -5,9 +5,11 @@ Explains OpenVINO, OVMS, and this application.
 Detects and shows available hardware (CPU / GPU / NPU).
 """
 
+import re
 import threading
 import tkinter as tk
 import customtkinter as ctk
+from pathlib import Path
 
 from app.config import cfg
 
@@ -30,41 +32,61 @@ APP_REPO    = "github.com/annguyen209/OVMS_GUI"
 
 # ── Helpers ───────────────────────────────────────────────────────────────
 
+_DESCRIPTIONS = {
+    "CPU": "General-purpose inference — always available, any model",
+    "GPU": "Arc iGPU — best throughput, shared system RAM as VRAM",
+    "NPU": "Intel AI Boost — lowest power draw, ideal for always-on tasks",
+}
+
+
 def _detect_devices() -> list[tuple[str, str, str]]:
     """
-    Returns list of (device_token, full_name, description) tuples.
-    Runs openvino in the configured venv so it doesn't block the GUI.
-    Falls back to a placeholder if detection fails.
+    Returns list of (device_token, full_name, description).
+
+    Strategy (fastest first):
+    1. Parse the OVMS log — server already printed the device list,
+       so this is an instant file read with no OpenVINO cold-start.
+    2. Direct import of openvino in-process (already loaded in this venv).
+    3. Return a placeholder on total failure.
     """
-    import subprocess, json
-    script = (
-        "import openvino as ov, json;"
-        "core=ov.Core();"
-        "devs=core.available_devices;"
-        "out=[{"
-        "'token':d,"
-        "'name':core.get_property(d,'FULL_DEVICE_NAME'),"
-        "'type':d"
-        "} for d in devs];"
-        "print(json.dumps(out))"
-    )
+    # ── 1. Read from OVMS log ────────────────────────────────────────────
     try:
-        r = subprocess.run(
-            [cfg.python_exe, "-c", script],
-            capture_output=True, text=True, timeout=20,
-        )
-        if r.returncode == 0:
-            data = json.loads(r.stdout.strip())
-            descriptions = {
-                "CPU": "General-purpose inference — always available",
-                "GPU": "Arc iGPU — best throughput for mid-size LLMs",
-                "NPU": "Intel AI Boost — lowest power draw, always-on tasks",
-            }
-            return [(d["token"], d["name"],
-                     descriptions.get(d["token"], "")) for d in data]
+        log = Path(cfg.ovms_log)
+        if log.is_file():
+            # Search backwards for the most recent device line
+            text = log.read_text(encoding="utf-8", errors="replace")
+            for line in reversed(text.splitlines()):
+                m = re.search(r"Available devices for Open VINO:\s*(.+)", line)
+                if m:
+                    tokens = [t.strip() for t in m.group(1).split(",")]
+                    # Try to get full names from a second log scan
+                    names: dict[str, str] = {}
+                    for l2 in text.splitlines():
+                        for tok in tokens:
+                            # e.g. "CPU: Intel(R) Core..."
+                            n = re.search(rf"{tok}:\s*(.+)", l2)
+                            if n:
+                                names[tok] = n.group(1).strip()
+                    return [
+                        (t, names.get(t, t), _DESCRIPTIONS.get(t, ""))
+                        for t in tokens
+                    ]
     except Exception:
         pass
-    return [("?", "Could not detect — is OpenVINO installed?", "")]
+
+    # ── 2. Direct import (openvino is in this venv, no subprocess needed) ─
+    try:
+        import openvino as ov
+        core = ov.Core()
+        return [
+            (d, core.get_property(d, "FULL_DEVICE_NAME"),
+             _DESCRIPTIONS.get(d, ""))
+            for d in core.available_devices
+        ]
+    except Exception:
+        pass
+
+    return [("?", "Could not detect — start the OVMS stack first.", "")]
 
 
 # ── Reusable card ─────────────────────────────────────────────────────────
@@ -105,8 +127,8 @@ class AboutTab(ctk.CTkFrame):
         kw.setdefault("fg_color", _BG)
         super().__init__(master, **kw)
         self._build_ui()
-        # Detect hardware in background so the tab opens instantly
-        threading.Thread(target=self._load_devices, daemon=True).start()
+        # Delay until mainloop is running
+        self.after(700, self._start_detection)
 
     def _build_ui(self):
         scroll = ctk.CTkScrollableFrame(self, fg_color=_BG, corner_radius=0)
@@ -250,13 +272,29 @@ class AboutTab(ctk.CTkFrame):
                                         font=ctk.CTkFont(size=11),
                                         text_color=_MUTED)
         self._hw_spinner.pack(side="left", padx=10)
+        ctk.CTkButton(hdr, text="↺ Refresh", width=90, height=26,
+                      font=ctk.CTkFont(size=11),
+                      fg_color="#f1f5f9", hover_color=_BORDER,
+                      text_color=_TEXT2,
+                      command=self._start_detection,
+                      ).pack(side="right")
 
         self._hw_frame = ctk.CTkFrame(card, fg_color="transparent")
         self._hw_frame.pack(fill="x", padx=16, pady=(0, 14))
 
+    def _start_detection(self):
+        # Clear previous results
+        for w in self._hw_frame.winfo_children():
+            w.destroy()
+        self._hw_spinner.configure(text="detecting…")
+        threading.Thread(target=self._load_devices, daemon=True).start()
+
     def _load_devices(self):
         devices = _detect_devices()
-        self.after(0, lambda: self._render_devices(devices))
+        try:
+            self.after(0, lambda: self._render_devices(devices))
+        except RuntimeError:
+            pass
 
     def _render_devices(self, devices):
         self._hw_spinner.configure(text="")
