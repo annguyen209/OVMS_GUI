@@ -469,6 +469,8 @@ class ModelRow(ctk.CTkFrame):
     def refresh(self):
         """Update status label and button text to reflect current model state."""
         model = self._model
+        active = read_active_model_name()
+        is_active = active and active == model.model_name_for_config
 
         if model.is_downloading:
             pct = model.download_progress
@@ -477,6 +479,18 @@ class ModelRow(ctk.CTkFrame):
             self._progress_bar.grid(row=1, column=0, columnspan=4, padx=12, pady=(0, 8), sticky="ew")
             self._btn.configure(text="Downloading...", state="disabled", fg_color=_AMBER,
                                 text_color="#ffffff")
+        elif is_active:
+            self._status_lbl.configure(text="Active", text_color=_BLUE)
+            self._progress_bar.grid_remove()
+            self._btn.configure(
+                text="Active",
+                state="disabled",
+                fg_color=_CARD2,
+                hover_color=_CARD2,
+                border_width=1,
+                border_color=_BLUE,
+                text_color=_BLUE,
+            )
         elif model.is_downloaded:
             self._status_lbl.configure(text="Downloaded", text_color=_GREEN)
             self._progress_bar.grid_remove()
@@ -488,7 +502,7 @@ class ModelRow(ctk.CTkFrame):
                 text_color="#ffffff",
             )
         else:
-            self._status_lbl.configure(text="Not downloaded", text_color=_RED)
+            self._status_lbl.configure(text="Not downloaded", text_color=_MUTED)
             self._progress_bar.grid_remove()
             self._btn.configure(
                 text="Download",
