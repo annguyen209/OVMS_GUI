@@ -15,6 +15,7 @@ import httpx
 
 from app.config import cfg
 from app.models import read_active_model_name
+from app.tools import TOOL_DEFINITIONS, execute_tool
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,9 @@ _CHAT_BG   = "#f3f4f6"   # gray-100
 # Streaming helper
 # ---------------------------------------------------------------------------
 
+_BASE = lambda: f"http://localhost:{cfg.proxy_port}/v3/chat/completions"
+
+
 def stream_chat(
     messages: list[dict],
     model: str,
@@ -48,19 +52,82 @@ def stream_chat(
     on_done: Callable[[], None],
     on_error: Callable[[str], None],
     max_tokens: int = 2048,
+    use_tools: bool = False,
+    on_tool_call: Callable[[str, str], None] | None = None,
 ):
-    """Send a streaming chat request in a background thread."""
+    """
+    Send a chat request, optionally with tool use (agentic loop).
+
+    If use_tools=True:
+      1. Non-streaming call with tool definitions
+      2. Execute any tool_calls the model requests (up to 5 rounds)
+      3. Stream the final response
+    If use_tools=False:
+      Plain streaming request (original behaviour).
+    on_tool_call(tool_name, result) - called when a tool executes (for UI display)
+    """
     def _worker():
-        url = f"http://localhost:{cfg.proxy_port}/v3/chat/completions"
-        payload = {
-            "model": model,
-            "messages": messages,
-            "max_tokens": max_tokens,
-            "stream": True,
-        }
         try:
             with httpx.Client(timeout=120) as client:
-                with client.stream("POST", url, json=payload, timeout=120) as resp:
+                msgs = list(messages)
+
+                if use_tools:
+                    # Agentic loop — run up to 5 rounds of tool calls
+                    for _ in range(5):
+                        payload = {
+                            "model": model,
+                            "messages": msgs,
+                            "max_tokens": max_tokens,
+                            "tools": TOOL_DEFINITIONS,
+                            "tool_choice": "auto",
+                            "stream": False,
+                        }
+                        r = client.post(_BASE(), json=payload)
+                        if r.status_code != 200:
+                            on_error(f"HTTP {r.status_code}: {r.text[:200]}")
+                            return
+
+                        choice = r.json()["choices"][0]
+                        msg    = choice["message"]
+
+                        tool_calls = msg.get("tool_calls") or []
+                        if not tool_calls:
+                            # No more tool calls — stream the final content
+                            content = msg.get("content") or ""
+                            if content:
+                                on_chunk(content)
+                            on_done()
+                            return
+
+                        # Append assistant message with tool_calls
+                        msgs.append(msg)
+
+                        # Execute each tool and append results
+                        for tc in tool_calls:
+                            name = tc["function"]["name"]
+                            args = tc["function"].get("arguments", "{}")
+                            result = execute_tool(name, args)
+
+                            if on_tool_call:
+                                on_tool_call(name, result)
+
+                            msgs.append({
+                                "role": "tool",
+                                "tool_call_id": tc["id"],
+                                "content": result,
+                            })
+
+                    on_error("Too many tool call rounds — stopping.")
+                    return
+
+                # Plain streaming (no tools)
+                payload = {
+                    "model": model,
+                    "messages": msgs,
+                    "max_tokens": max_tokens,
+                    "stream": True,
+                }
+                with client.stream("POST", _BASE(), json=payload, timeout=120) as resp:
                     if resp.status_code != 200:
                         on_error(f"HTTP {resp.status_code}: {resp.read().decode()[:200]}")
                         return
@@ -72,14 +139,16 @@ def stream_chat(
                             break
                         try:
                             chunk = json.loads(data)
-                            content = chunk["choices"][0].get("delta", {}).get("content", "")
+                            content = (chunk["choices"][0]
+                                       .get("delta", {}).get("content", ""))
                             if content:
                                 on_chunk(content)
                         except (json.JSONDecodeError, KeyError):
                             continue
-            on_done()
+                on_done()
+
         except httpx.ConnectError:
-            on_error("Cannot connect. Is the proxy running on port "
+            on_error(f"Cannot connect. Is the proxy running on port "
                      f"{cfg.proxy_port}? Start the stack first.")
         except Exception as exc:
             on_error(str(exc))
@@ -182,6 +251,15 @@ class ChatTab(ctk.CTkFrame):
             text_color=_TEXT2,
             command=self._clear,
         ).pack(side="right", padx=14)
+
+        # Tools toggle
+        self._tools_var = ctk.BooleanVar(value=False)
+        ctk.CTkLabel(top, text="Web tools:",
+                     font=ctk.CTkFont(size=11), text_color=_MUTED,
+                     ).pack(side="right", padx=(0, 4))
+        ctk.CTkSwitch(top, text="", variable=self._tools_var,
+                      width=40, button_color=_BLUE, progress_color=_BLUE,
+                      ).pack(side="right", padx=(0, 4))
 
         ctk.CTkLabel(top, text="System prompt:", font=ctk.CTkFont(size=12),
                      text_color=_MUTED).pack(side="right", padx=(0, 4))
@@ -312,11 +390,14 @@ class ChatTab(ctk.CTkFrame):
         self._messages.append({"role": "user", "content": text})
         self._add_bubble("user", text)
 
-        # Placeholder bubble for the streaming response
+        use_tools = self._tools_var.get()
+
+        # Placeholder bubble for the response
         self._active_bubble = self._add_bubble("assistant", "")
         self._streaming = True
         self._send_btn.configure(state="disabled", text="...")
-        self._status.configure(text="Generating...", text_color=_AMBER)
+        status_text = "Thinking (web tools on)..." if use_tools else "Generating..."
+        self._status.configure(text=status_text, text_color=_AMBER)
 
         stream_chat(
             messages=self._messages,
@@ -324,6 +405,8 @@ class ChatTab(ctk.CTkFrame):
             on_chunk=self._on_chunk,
             on_done=self._on_done,
             on_error=self._on_error,
+            use_tools=use_tools,
+            on_tool_call=self._on_tool_call,
         )
 
     def _scroll_to_bottom(self):
@@ -346,6 +429,17 @@ class ChatTab(ctk.CTkFrame):
     # ------------------------------------------------------------------
     # Streaming callbacks (called from background thread - use .after)
     # ------------------------------------------------------------------
+
+    def _on_tool_call(self, name: str, result: str):
+        """Show a compact tool-call notice in the chat."""
+        label = {
+            "get_current_time": "Getting current time",
+            "get_weather":      "Fetching weather",
+            "web_search":       "Searching the web",
+            "fetch_url":        "Fetching URL",
+        }.get(name, f"Calling {name}")
+        self.after(0, lambda: self._status.configure(
+            text=f"{label}...", text_color=_BLUE))
 
     def _on_chunk(self, text: str):
         self.after(0, lambda t=text: self._apply_chunk(t))
