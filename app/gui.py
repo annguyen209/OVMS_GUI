@@ -20,6 +20,8 @@ from app.log_viewer import LogViewerWidget
 from app.config import cfg
 from app.chat import ChatTab
 from app.guide import GuideTab
+from app.setup_tab import SetupTab
+from app import installer
 
 logger = logging.getLogger(__name__)
 
@@ -757,11 +759,18 @@ class App(ctk.CTk):
         self._tabs = ctk.CTkTabview(self, anchor="nw")
         self._tabs.pack(fill="both", expand=True, padx=12, pady=(12, 4))
 
+        self._tabs.add("Setup")
         self._tabs.add("Dashboard")
         self._tabs.add("Models")
         self._tabs.add("Chat")
         self._tabs.add("Guide")
         self._tabs.add("Settings")
+
+        self._setup_tab = SetupTab(
+            self._tabs.tab("Setup"),
+            on_all_ok=lambda: self.after(0, lambda: self._tabs.set("Dashboard")),
+        )
+        self._setup_tab.pack(fill="both", expand=True)
 
         self._dashboard = DashboardTab(self._tabs.tab("Dashboard"), server=self._server)
         self._dashboard.pack(fill="both", expand=True)
@@ -778,12 +787,18 @@ class App(ctk.CTk):
         self._settings_tab = SettingsTab(self._tabs.tab("Settings"))
         self._settings_tab.pack(fill="both", expand=True)
 
-        # Refresh guide code blocks when tab becomes visible
+        # Auto-select Setup tab if anything is missing
+        if not installer.all_ok():
+            self._tabs.set("Setup")
+
         self._tabs.configure(command=self._on_tab_change)
 
     def _on_tab_change(self):
-        if self._tabs.get() == "Guide":
+        tab = self._tabs.get()
+        if tab == "Guide":
             self._guide_tab.on_show()
+        elif tab == "Setup":
+            self._setup_tab.refresh()
 
     # ------------------------------------------------------------------
     # System tray
