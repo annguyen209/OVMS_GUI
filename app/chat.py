@@ -116,7 +116,7 @@ class MessageBubble(ctk.CTkFrame):
         self._label = ctk.CTkLabel(
             self,
             textvariable=self._text_var,
-            font=ctk.CTkFont(size=13),
+            font=ctk.CTkFont(family="Segoe UI", size=13),
             text_color=_TEXT,
             anchor="w",
             justify="left",
@@ -140,10 +140,11 @@ class ChatTab(ctk.CTkFrame):
     def __init__(self, master, **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
 
-        self._messages: list[dict] = []          # OpenAI-format history
+        self._messages: list[dict] = []
         self._bubbles:  list[MessageBubble] = []
         self._streaming = False
         self._active_bubble: MessageBubble | None = None
+        self._ime_composing = False   # True while Windows IME is mid-composition
 
         self._build_ui()
         self.bind("<Configure>", self._on_resize)
@@ -208,7 +209,8 @@ class ChatTab(ctk.CTkFrame):
 
         self._input = ctk.CTkTextbox(
             input_row,
-            font=ctk.CTkFont(size=13),
+            # Segoe UI covers full Unicode including Vietnamese diacritics
+            font=ctk.CTkFont(family="Segoe UI", size=13),
             height=52,
             fg_color=_CARD2,
             border_width=1,
@@ -217,9 +219,14 @@ class ChatTab(ctk.CTkFrame):
             wrap="word",
         )
         self._input.pack(side="left", fill="both", expand=True, padx=(12, 6), pady=10)
-        # Bind on the inner tk.Text widget - CTkTextbox doesn't propagate bindings
-        self._input._textbox.bind("<Return>", self._on_enter)
-        self._input._textbox.bind("<Shift-Return>", lambda e: "break")
+
+        tb = self._input._textbox
+        # Track Windows IME composition so Enter confirms the composition
+        # instead of submitting the message (needed for Vietnamese, CJK, etc.)
+        tb.bind("<<CompositionStart>>", lambda e: setattr(self, "_ime_composing", True))
+        tb.bind("<<CompositionEnd>>",   lambda e: setattr(self, "_ime_composing", False))
+        tb.bind("<Return>",      self._on_enter)
+        tb.bind("<Shift-Return>", lambda e: "break")
 
         self._send_btn = ctk.CTkButton(
             input_row,
@@ -263,8 +270,10 @@ class ChatTab(ctk.CTkFrame):
     # ------------------------------------------------------------------
 
     def _on_enter(self, event):
+        if self._ime_composing:
+            return          # let IME use Enter to confirm the composition
         self._send()
-        return "break"  # suppress the newline that Enter would insert
+        return "break"      # suppress the newline Enter would normally insert
 
     def _send(self):
         if self._streaming:
