@@ -187,7 +187,7 @@ class HardwareBar(tk.Frame):
         self.pack_propagate(False)
 
         self._inner = tk.Frame(self, bg=_CARD)
-        self._inner.pack(fill="both", expand=True, padx=12, pady=0)
+        self._inner.pack(fill="both", expand=True, padx=(15, 12), pady=0)
 
         self._placeholder = ctk.CTkLabel(
             self._inner, text="Detecting hardware...",
@@ -273,10 +273,8 @@ class DashboardTab(ctk.CTkFrame):
         self._card_model.grid(row=0, column=2, padx=(5, 0), pady=0, sticky="nsew")
 
         # ---- Hardware info ----
-        # Left padx = 19 (16 base + 3 for the status-card left stripe width)
-        # so hardware text aligns with status card text
         _section_header(self, "HARDWARE")
-        HardwareBar(self).pack(fill="x", padx=(19, 16), pady=(0, 4))
+        HardwareBar(self).pack(fill="x", padx=16, pady=(0, 4))
 
         # ---- Endpoint panel ----
         _section_header(self, "ENDPOINT")
