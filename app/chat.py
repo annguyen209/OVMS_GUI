@@ -353,7 +353,7 @@ class ChatTab(ctk.CTkFrame):
         ).pack(side="right", padx=14)
 
         # Tools toggle
-        self._tools_var = ctk.BooleanVar(value=False)
+        self._tools_var = ctk.BooleanVar(value=True)
         ctk.CTkLabel(top, text="Web tools:",
                      font=ctk.CTkFont(size=11), text_color=_MUTED,
                      ).pack(side="right", padx=(0, 4))
