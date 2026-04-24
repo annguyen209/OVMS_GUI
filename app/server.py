@@ -225,16 +225,32 @@ class ServerManager:
             self._ovms_healthy = healthy
 
     def _check_proxy_alive(self):
+        """
+        Detect proxy regardless of whether it was started by the GUI or
+        externally (e.g. start-ovms.bat). Always do a network check on
+        the proxy port so external processes are visible.
+        """
         alive = False
+
+        # 1. Check our managed process first (fast path)
         with self._lock:
             proc = self._proxy_proc
-        if proc and proc.poll() is None:
-            try:
-                with httpx.Client(timeout=2.0) as client:
-                    resp = client.get(f"http://localhost:{cfg.proxy_port}/health")
-                    alive = resp.status_code < 500
-            except Exception:
-                alive = True
+        if proc and proc.poll() is not None:
+            # Our process exited — clear the reference
+            with self._lock:
+                self._proxy_proc = None
+            proc = None
+
+        # 2. Network check — covers both managed and external processes
+        try:
+            with httpx.Client(timeout=2.0) as client:
+                resp = client.get(
+                    f"http://localhost:{cfg.proxy_port}/v3/models"
+                )
+                alive = resp.status_code in (200, 404)
+        except Exception:
+            alive = False
+
         with self._lock:
             self._proxy_running = alive
 

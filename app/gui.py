@@ -72,30 +72,32 @@ def _section_header(parent, text: str):
 
 class StatusCard(ctk.CTkFrame):
     def __init__(self, master, title: str, **kwargs):
-        kwargs.setdefault("corner_radius", 8)
+        kwargs.setdefault("corner_radius", 6)
         kwargs.setdefault("fg_color", _CARD)
         kwargs.setdefault("border_width", 1)
         kwargs.setdefault("border_color", _BORDER)
+        kwargs.setdefault("height", 36)
         super().__init__(master, **kwargs)
+        self.pack_propagate(False)
 
-        # Left-edge colored status bar (3px wide, full card height)
+        # Left-edge colored status bar
         self._status_bar = ctk.CTkFrame(self, width=3, fg_color=_MUTED,
                                         corner_radius=0)
         self._status_bar.pack(side="left", fill="y")
 
-        inner = ctk.CTkFrame(self, fg_color="transparent")
-        inner.pack(side="left", fill="both", expand=True, padx=(10, 14), pady=14)
+        row = ctk.CTkFrame(self, fg_color="transparent")
+        row.pack(side="left", fill="both", expand=True, padx=(10, 12))
 
-        ctk.CTkLabel(inner, text=title,
-                     font=ctk.CTkFont(size=11, weight="bold"),
-                     text_color=_MUTED, anchor="w").pack(anchor="w")
+        ctk.CTkLabel(row, text=f"{title}:",
+                     font=ctk.CTkFont(size=11),
+                     text_color=_MUTED, anchor="w").pack(side="left")
 
         self._value_lbl = ctk.CTkLabel(
-            inner, text="...",
-            font=ctk.CTkFont(size=20, weight="bold"),
+            row, text="...",
+            font=ctk.CTkFont(size=11, weight="bold"),
             text_color=_TEXT, anchor="w",
         )
-        self._value_lbl.pack(anchor="w", pady=(4, 0))
+        self._value_lbl.pack(side="left", padx=(4, 0))
 
     def set_status(self, text: str, color: str = _MUTED):
         self._status_bar.configure(fg_color=color)
