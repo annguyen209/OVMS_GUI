@@ -72,7 +72,7 @@ def _section_header(parent, text: str):
 
 class StatusCard(ctk.CTkFrame):
     def __init__(self, master, title: str, **kwargs):
-        kwargs.setdefault("corner_radius", 6)
+        kwargs.setdefault("corner_radius", 0)
         kwargs.setdefault("fg_color", _CARD)
         kwargs.setdefault("border_width", 1)
         kwargs.setdefault("border_color", _BORDER)
@@ -177,7 +177,7 @@ class HardwareBar(ctk.CTkFrame):
 
     def __init__(self, master, **kwargs):
         kwargs.setdefault("fg_color", _CARD)
-        kwargs.setdefault("corner_radius", 6)
+        kwargs.setdefault("corner_radius", 0)
         kwargs.setdefault("border_width", 1)
         kwargs.setdefault("border_color", _BORDER)
         kwargs.setdefault("height", 32)
