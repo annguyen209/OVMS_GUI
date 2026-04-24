@@ -18,6 +18,7 @@ from app.server import ServerManager
 from app.models import CURATED_MODELS, ModelInfo, download_model, activate_model, read_active_model_name
 from app.log_viewer import LogViewerWidget
 from app.config import cfg
+from app.chat import ChatTab
 
 logger = logging.getLogger(__name__)
 
@@ -660,6 +661,7 @@ class App(ctk.CTk):
 
         self._tabs.add("Dashboard")
         self._tabs.add("Models")
+        self._tabs.add("Chat")
         self._tabs.add("Settings")
 
         self._dashboard = DashboardTab(self._tabs.tab("Dashboard"), server=self._server)
@@ -667,6 +669,9 @@ class App(ctk.CTk):
 
         self._models_tab = ModelsTab(self._tabs.tab("Models"), server=self._server)
         self._models_tab.pack(fill="both", expand=True)
+
+        self._chat_tab = ChatTab(self._tabs.tab("Chat"))
+        self._chat_tab.pack(fill="both", expand=True)
 
         self._settings_tab = SettingsTab(self._tabs.tab("Settings"))
         self._settings_tab.pack(fill="both", expand=True)
