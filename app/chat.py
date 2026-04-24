@@ -15,7 +15,7 @@ import httpx
 
 from app.config import cfg
 from app.models import read_active_model_name
-from app.tools import TOOL_DEFINITIONS, execute_tool
+from app.tools import TOOL_DEFINITIONS, execute_tool, parse_text_tool_call
 
 logger = logging.getLogger(__name__)
 
@@ -91,40 +91,59 @@ def stream_chat(
                         choice   = data["choices"][0]
                         msg      = choice["message"]
                         finish   = choice.get("finish_reason", "")
+                        content  = msg.get("content") or ""
 
-                        # Collect tool calls — may be in message or choice
+                        # --- Structured tool_calls (proper function calling) ---
                         tool_calls = (msg.get("tool_calls")
                                       or choice.get("tool_calls")
                                       or [])
 
-                        logger.debug("Tool round finish=%s tool_calls=%d",
-                                     finish, len(tool_calls))
+                        # --- Text-based tool call (model outputs JSON in content) ---
+                        text_tc = None
+                        if not tool_calls and content:
+                            text_tc = parse_text_tool_call(content)
 
-                        if not tool_calls or finish == "stop":
-                            content = msg.get("content") or ""
+                        logger.debug("Tool round finish=%s structured=%d text=%s",
+                                     finish, len(tool_calls), text_tc)
+
+                        if not tool_calls and not text_tc:
+                            # No tool call — deliver the content as final answer
                             if content:
                                 on_chunk(content)
                             on_done()
                             return
 
-                        # Append assistant turn with tool_calls
-                        msgs.append({
-                            "role": "assistant",
-                            "content": msg.get("content") or "",
-                            "tool_calls": tool_calls,
-                        })
-
-                        for tc in tool_calls:
-                            fn   = tc.get("function", {})
-                            name = fn.get("name", "unknown")
-                            args = fn.get("arguments", "{}")
+                        if tool_calls:
+                            # Structured tool_calls path
+                            msgs.append({
+                                "role": "assistant",
+                                "content": content,
+                                "tool_calls": tool_calls,
+                            })
+                            for tc in tool_calls:
+                                fn   = tc.get("function", {})
+                                name = fn.get("name", "unknown")
+                                args = fn.get("arguments", "{}")
+                                result = execute_tool(name, args)
+                                if on_tool_call:
+                                    on_tool_call(name, result)
+                                msgs.append({
+                                    "role":         "tool",
+                                    "tool_call_id": tc.get("id", "0"),
+                                    "content":      result,
+                                })
+                        else:
+                            # Text-based tool call path
+                            name   = text_tc["name"]
+                            args   = text_tc["arguments"]
                             result = execute_tool(name, args)
                             if on_tool_call:
                                 on_tool_call(name, result)
+                            # Feed result back as a user turn (model will understand)
+                            msgs.append({"role": "assistant", "content": content})
                             msgs.append({
-                                "role":        "tool",
-                                "tool_call_id": tc.get("id", "0"),
-                                "content":      result,
+                                "role":    "user",
+                                "content": f"Tool result for {name}:\n{result}",
                             })
 
                     on_error("Tool call limit reached (5 rounds).")

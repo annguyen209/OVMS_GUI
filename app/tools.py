@@ -186,6 +186,48 @@ _HANDLERS: dict[str, Any] = {
 }
 
 
+def parse_text_tool_call(content: str) -> dict | None:
+    """
+    Detect when a model outputs a tool call as plain text JSON instead of
+    using the structured tool_calls API field.
+
+    Matches patterns like:
+      {"name": "get_current_time", "arguments": {}}
+      {"name": "web_search", "arguments": {"query": "..."}}
+    """
+    import re
+
+    # Try the whole content as JSON first
+    stripped = content.strip()
+    # Remove markdown code fences if present
+    stripped = re.sub(r"^```(?:json)?\s*", "", stripped)
+    stripped = re.sub(r"\s*```$", "", stripped)
+    stripped = stripped.strip()
+
+    try:
+        data = json.loads(stripped)
+        if isinstance(data, dict) and "name" in data and data["name"] in _HANDLERS:
+            return {"name": data["name"],
+                    "arguments": data.get("arguments") or data.get("parameters") or {}}
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # Fallback: regex scan for the pattern anywhere in the content
+    pattern = (r'\{\s*"name"\s*:\s*"([^"]+)"\s*,\s*'
+               r'"(?:arguments|parameters)"\s*:\s*(\{[^}]*\})\s*\}')
+    m = re.search(pattern, content, re.DOTALL)
+    if m:
+        name = m.group(1)
+        if name in _HANDLERS:
+            try:
+                args = json.loads(m.group(2))
+                return {"name": name, "arguments": args}
+            except json.JSONDecodeError:
+                return {"name": name, "arguments": {}}
+
+    return None
+
+
 def execute_tool(name: str, arguments: str | dict) -> str:
     """
     Execute a tool by name. Returns the result as a string.
