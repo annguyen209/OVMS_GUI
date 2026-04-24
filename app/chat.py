@@ -202,31 +202,42 @@ class ChatTab(ctk.CTkFrame):
         self._status.pack(fill="x", padx=14)
 
         # ---- Input row ----
-        input_row = ctk.CTkFrame(self, fg_color=_CARD, corner_radius=0, height=72,
-                                 border_width=1, border_color=_BORDER)
+        # Use tk.Frame + tk.Text for the input so Vietnamese IME works natively.
+        # CTkTextbox intercepts key events that break IME character composition.
+        input_row = tk.Frame(self, bg=_CARD,
+                             highlightthickness=1,
+                             highlightbackground=_BORDER,
+                             highlightcolor=_BORDER,
+                             height=72)
         input_row.pack(fill="x", side="bottom")
         input_row.pack_propagate(False)
 
-        self._input = ctk.CTkTextbox(
+        # Plain tk.Text — full IME support, full Unicode, no event interception
+        self._input = tk.Text(
             input_row,
-            # Segoe UI covers full Unicode including Vietnamese diacritics
-            font=ctk.CTkFont(family="Segoe UI", size=13),
-            height=52,
-            fg_color=_CARD2,
-            border_width=1,
-            border_color=_BORDER,
-            text_color=_TEXT,
+            font=("Segoe UI", 12),
+            bg=_CARD2,
+            fg=_TEXT,
+            insertbackground=_TEXT,    # cursor colour
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=_BORDER,
+            highlightcolor=_BLUE,
             wrap="word",
+            height=3,
+            padx=8,
+            pady=6,
+            undo=True,
         )
-        self._input.pack(side="left", fill="both", expand=True, padx=(12, 6), pady=10)
+        self._input.pack(side="left", fill="both", expand=True,
+                         padx=(12, 6), pady=10)
 
-        tb = self._input._textbox
-        # Track Windows IME composition so Enter confirms the composition
-        # instead of submitting the message (needed for Vietnamese, CJK, etc.)
-        tb.bind("<<CompositionStart>>", lambda e: setattr(self, "_ime_composing", True))
-        tb.bind("<<CompositionEnd>>",   lambda e: setattr(self, "_ime_composing", False))
-        tb.bind("<Return>",      self._on_enter)
-        tb.bind("<Shift-Return>", lambda e: "break")
+        self._input.bind("<<CompositionStart>>",
+                         lambda e: setattr(self, "_ime_composing", True))
+        self._input.bind("<<CompositionEnd>>",
+                         lambda e: setattr(self, "_ime_composing", False))
+        self._input.bind("<Return>",       self._on_enter)
+        self._input.bind("<Shift-Return>", lambda e: None)  # allow newline
 
         self._send_btn = ctk.CTkButton(
             input_row,
