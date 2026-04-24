@@ -1,2 +1,9 @@
 __pycache__/
 *.pyc
+dist/
+build/
+*.spec.bak
+app-stdout.log
+app-stderr.log
+build.log
+ovms-gui-config.json

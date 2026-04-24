@@ -1,0 +1,94 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install `
+            customtkinter `
+            pystray `
+            pillow `
+            httpx `
+            huggingface_hub `
+            duckduckgo-search `
+            fastapi `
+            uvicorn `
+            jinja2 `
+            pyinstaller
+
+      - name: Generate icon
+        run: python -c "import sys; sys.path.insert(0, '.'); from app.icon import build_icon; build_icon(force=True)"
+
+      - name: Build with PyInstaller
+        run: pyinstaller ovms_manager.spec --noconfirm --clean
+
+      - name: Install Inno Setup
+        run: choco install innosetup --yes
+        shell: pwsh
+
+      - name: Build installer
+        run: |
+          mkdir dist\installer -Force
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+        shell: pwsh
+
+      - name: Get tag version
+        id: tag
+        run: echo "version=${{ github.ref_name }}" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Zip portable build
+        run: |
+          Compress-Archive `
+            -Path "dist\OVMS Manager\*" `
+            -DestinationPath "dist\OVMS_Manager_${{ steps.tag.outputs.version }}_portable.zip"
+        shell: pwsh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "OVMS Manager ${{ steps.tag.outputs.version }}"
+          body: |
+            ## OVMS Manager ${{ steps.tag.outputs.version }}
+
+            A desktop GUI for managing OpenVINO Model Server on Windows.
+
+            ### Downloads
+            | File | Description |
+            |------|-------------|
+            | `OVMS_Manager_Setup_*.exe` | Windows installer (recommended) |
+            | `OVMS_Manager_*_portable.zip` | Portable — extract and run |
+
+            ### Requirements
+            - Windows 10/11 64-bit
+            - Intel CPU with Arc iGPU or NPU (Core Ultra recommended)
+            - Internet connection for first-run setup (OVMS binary + model downloads)
+
+            ### First Run
+            The app will detect missing components and guide you through
+            installing OVMS and OpenVINO via the Setup tab.
+          files: |
+            dist/installer/OVMS_Manager_Setup_*.exe
+            dist/OVMS_Manager_${{ steps.tag.outputs.version }}_portable.zip
+          draft: false
+          prerelease: false
