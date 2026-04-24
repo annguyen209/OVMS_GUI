@@ -181,11 +181,11 @@ class HardwareBar(ctk.CTkFrame):
         super().__init__(master, **kwargs)
 
         self._inner = ctk.CTkFrame(self, fg_color="transparent")
-        self._inner.pack(fill="x", padx=12, pady=6)
+        self._inner.pack(fill="x", padx=14, pady=8)
 
         self._placeholder = ctk.CTkLabel(
             self._inner, text="Detecting hardware...",
-            font=ctk.CTkFont(size=10), text_color=_MUTED, anchor="w",
+            font=ctk.CTkFont(size=11), text_color=_MUTED, anchor="w",
         )
         self._placeholder.pack(side="left")
 
@@ -218,28 +218,20 @@ class HardwareBar(ctk.CTkFrame):
         for i, (token, name, desc) in enumerate(devices):
             if i > 0:
                 ctk.CTkFrame(self._inner, width=1, fg_color=_BORDER
-                             ).pack(side="left", fill="y", padx=12, pady=2)
+                             ).pack(side="left", fill="y", padx=14, pady=2)
 
-            col = ctk.CTkFrame(self._inner, fg_color="transparent")
-            col.pack(side="left")
-
-            color = _token_colors.get(token, _MUTED)
+            color   = _token_colors.get(token, _MUTED)
             display = name if name != token else _token_subtitles.get(token, token)
             label   = _token_labels.get(token, token)
 
-            # Single line: "CPU  Processor  |  General-purpose inference"
-            row = ctk.CTkFrame(col, fg_color="transparent")
-            row.pack(anchor="w")
-            ctk.CTkLabel(row, text=token,
-                         font=ctk.CTkFont(size=10, weight="bold"),
+            # Everything on one line: [TOKEN]  label  display
+            ctk.CTkLabel(self._inner, text=token,
+                         font=ctk.CTkFont(size=11, weight="bold"),
                          text_color=color).pack(side="left")
-            ctk.CTkLabel(row, text=f"  {label}",
-                         font=ctk.CTkFont(size=10),
-                         text_color=_MUTED).pack(side="left")
-
-            ctk.CTkLabel(col, text=display,
-                         font=ctk.CTkFont(size=10),
-                         text_color=_TEXT2).pack(anchor="w")
+            ctk.CTkLabel(self._inner,
+                         text=f"  {label}   {display}",
+                         font=ctk.CTkFont(size=11),
+                         text_color=_TEXT2).pack(side="left")
 
 
 # ---------------------------------------------------------------------------
