@@ -79,6 +79,7 @@ class _ComponentRow(ctk.CTkFrame):
         self._btn = ctk.CTkButton(self, text="Install", width=90, height=30,
                                   font=ctk.CTkFont(size=12),
                                   fg_color=_BLUE, hover_color=_BLUE_H,
+                                  border_width=1, border_color=_BLUE,
                                   text_color="#ffffff",
                                   command=self._install)
         self._btn.pack(side="right", padx=14, pady=10)
@@ -175,6 +176,7 @@ class SetupTab(ctk.CTkFrame):
             btn_row, text="Install All", width=140, height=38,
             font=ctk.CTkFont(size=13, weight="bold"),
             fg_color=_BLUE, hover_color=_BLUE_H,
+            border_width=1, border_color=_BLUE,
             text_color="#ffffff",
             command=self._install_all,
         )

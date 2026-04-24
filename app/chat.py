@@ -96,14 +96,14 @@ class MessageBubble(ctk.CTkFrame):
 
     def __init__(self, master, role: str, content: str = "", **kwargs):
         bg = {"user": _USER_BG, "assistant": _ASSIST_BG, "system": _SYSTEM_BG}.get(role, _ASSIST_BG)
+        border_colors = {"user": "#bfdbfe", "assistant": "#bbf7d0", "system": _BORDER}
         kwargs.setdefault("fg_color", bg)
         kwargs.setdefault("corner_radius", 8)
+        kwargs.setdefault("border_width", 1)
+        kwargs.setdefault("border_color", border_colors.get(role, _BORDER))
         super().__init__(master, **kwargs)
 
-        role_colors   = {"user": _BLUE,  "assistant": _GREEN, "system": _TEXT2}
-        border_colors = {"user": "#bfdbfe", "assistant": "#bbf7d0", "system": _BORDER}
-        self.configure(border_width=1,
-                       border_color=border_colors.get(role, _BORDER))
+        role_colors = {"user": _BLUE, "assistant": _GREEN, "system": _TEXT2}
         ctk.CTkLabel(
             self,
             text=role.capitalize(),

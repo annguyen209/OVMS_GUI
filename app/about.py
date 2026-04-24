@@ -46,37 +46,9 @@ def _detect_devices() -> list[tuple[str, str, str]]:
     """
     Returns list of (device_token, full_name, description).
 
-    Strategy (fastest first):
-    1. Parse the OVMS log - server already printed the device list,
-       so this is an instant file read with no OpenVINO cold-start.
-    2. Direct import of openvino in-process (already loaded in this venv).
-    3. Return a placeholder on total failure.
+    Uses openvino direct import (already in this venv) to get accurate
+    full device names. Falls back to token names on failure.
     """
-    # 1. Read from OVMS log
-    try:
-        log = Path(cfg.ovms_log)
-        if log.is_file():
-            # Search backwards for the most recent device line
-            text = log.read_text(encoding="utf-8", errors="replace")
-            for line in reversed(text.splitlines()):
-                m = re.search(r"Available devices for Open VINO:\s*(.+)", line)
-                if m:
-                    tokens = [t.strip() for t in m.group(1).split(",")]
-                    # Try to get full names from a second log scan
-                    names: dict[str, str] = {}
-                    for l2 in text.splitlines():
-                        for tok in tokens:
-                            n = re.search(rf"{tok}:\s*(.+)", l2)
-                            if n:
-                                names[tok] = n.group(1).strip()
-                    return [
-                        (t, names.get(t, t), _DESCRIPTIONS.get(t, ""))
-                        for t in tokens
-                    ]
-    except Exception:
-        pass
-
-    # 2. Direct import (openvino is in this venv, no subprocess needed)
     try:
         import openvino as ov
         core = ov.Core()
@@ -85,6 +57,22 @@ def _detect_devices() -> list[tuple[str, str, str]]:
              _DESCRIPTIONS.get(d, ""))
             for d in core.available_devices
         ]
+    except Exception:
+        pass
+
+    # Fallback: parse token list from OVMS log (no full names available)
+    try:
+        log = Path(cfg.ovms_log)
+        if log.is_file():
+            text = log.read_text(encoding="utf-8", errors="replace")
+            for line in reversed(text.splitlines()):
+                m = re.search(r"Available devices for Open VINO:\s*(.+)", line)
+                if m:
+                    tokens = [t.strip() for t in m.group(1).split(",")]
+                    return [
+                        (t, t, _DESCRIPTIONS.get(t, ""))
+                        for t in tokens
+                    ]
     except Exception:
         pass
 
@@ -330,13 +318,14 @@ class AboutTab(ctk.CTkFrame):
                              font=ctk.CTkFont(size=11),
                              text_color=_MUTED, anchor="w").pack(anchor="w")
 
-            # Device badge
-            ctk.CTkLabel(row, text=f'device="{token}"',
+            # Device badge (CTkLabel does not support border_width)
+            badge = ctk.CTkFrame(row, fg_color=_CARD2, corner_radius=6,
+                                 border_width=1, border_color=_BORDER2)
+            badge.pack(side="right", padx=14, pady=10)
+            ctk.CTkLabel(badge, text=f'device="{token}"',
                          font=ctk.CTkFont(family="Consolas", size=11),
-                         fg_color=_CARD2, text_color=_BLUE,
-                         corner_radius=6, padx=8, pady=4,
-                         border_width=1,
-                         ).pack(side="right", padx=14)
+                         fg_color="transparent", text_color=_BLUE,
+                         ).pack(padx=8, pady=4)
 
     # App info
 
