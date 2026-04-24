@@ -18,13 +18,14 @@ from app.models import read_active_model_name
 
 logger = logging.getLogger(__name__)
 
-_GREEN  = "#2ecc71"
-_RED    = "#e74c3c"
-_YELLOW = "#f39c12"
-_GRAY   = "#555566"
-_USER_BG   = "#1a3a5c"
-_ASSIST_BG = "#1e1e2e"
-_SYSTEM_BG = "#2a1e3a"
+_GREEN  = "#16a34a"
+_RED    = "#dc2626"
+_YELLOW = "#d97706"
+_GRAY   = "#64748b"
+_USER_BG   = "#eff6ff"   # blue-50
+_ASSIST_BG = "#ffffff"   # white
+_SYSTEM_BG = "#faf5ff"   # purple-50
+_CHAT_BG   = "#f1f5f9"   # slate-100
 
 
 # ---------------------------------------------------------------------------
@@ -90,25 +91,29 @@ class MessageBubble(ctk.CTkFrame):
         kwargs.setdefault("corner_radius", 10)
         super().__init__(master, **kwargs)
 
-        role_colors = {"user": "#7eb8f7", "assistant": "#a0e0a0", "system": "#c8a8e8"}
+        role_colors = {"user": "#2563eb", "assistant": "#16a34a", "system": "#7c3aed"}
+        border_colors = {"user": "#bfdbfe", "assistant": "#bbf7d0", "system": "#e9d5ff"}
+        self.configure(border_width=1,
+                       border_color=border_colors.get(role, "#e2e8f0"))
         ctk.CTkLabel(
             self,
             text=role.capitalize(),
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color=role_colors.get(role, "#aaaaaa"),
+            font=ctk.CTkFont(size=10, weight="bold"),
+            text_color=role_colors.get(role, "#64748b"),
             anchor="w",
-        ).pack(anchor="w", padx=12, pady=(8, 2))
+        ).pack(anchor="w", padx=14, pady=(10, 2))
 
         self._text_var = tk.StringVar(value=content)
         self._label = ctk.CTkLabel(
             self,
             textvariable=self._text_var,
             font=ctk.CTkFont(size=13),
+            text_color="#0f172a",
             anchor="w",
             justify="left",
             wraplength=700,
         )
-        self._label.pack(anchor="w", padx=12, pady=(0, 10), fill="x")
+        self._label.pack(anchor="w", padx=14, pady=(0, 12), fill="x")
 
     def append(self, text: str):
         self._text_var.set(self._text_var.get() + text)
@@ -139,60 +144,63 @@ class ChatTab(ctk.CTkFrame):
     # ------------------------------------------------------------------
 
     def _build_ui(self):
-        # ---- Top bar: model name + controls ----
-        top = ctk.CTkFrame(self, fg_color="#13131f", corner_radius=0, height=44)
+        # ---- Top bar ----
+        top = ctk.CTkFrame(self, fg_color="#ffffff", corner_radius=0, height=48,
+                           border_width=1, border_color="#e2e8f0")
         top.pack(fill="x")
         top.pack_propagate(False)
 
         ctk.CTkLabel(top, text="Model:", font=ctk.CTkFont(size=12),
-                     text_color="#888899").pack(side="left", padx=(14, 4), pady=10)
+                     text_color="#64748b").pack(side="left", padx=(14, 4), pady=12)
 
-        self._model_entry = ctk.CTkEntry(top, font=ctk.CTkFont(size=12), width=280, height=28)
-        self._model_entry.pack(side="left", pady=8)
+        self._model_entry = ctk.CTkEntry(top, font=ctk.CTkFont(size=12), width=280, height=30)
+        self._model_entry.pack(side="left", pady=9)
         self._refresh_model_name()
 
         ctk.CTkButton(
-            top, text="↺", width=32, height=28, font=ctk.CTkFont(size=14),
-            fg_color="transparent", hover_color="#2a2a3a",
+            top, text="↺", width=32, height=30, font=ctk.CTkFont(size=14),
+            fg_color="transparent", hover_color="#f1f5f9", text_color="#64748b",
             command=self._refresh_model_name,
         ).pack(side="left", padx=4)
 
         ctk.CTkButton(
-            top, text="Clear", width=70, height=28, font=ctk.CTkFont(size=12),
-            fg_color="#333344", hover_color="#444455",
+            top, text="Clear", width=70, height=30, font=ctk.CTkFont(size=12),
+            fg_color="#f1f5f9", hover_color="#e2e8f0", text_color="#334155",
             command=self._clear,
         ).pack(side="right", padx=14)
 
         ctk.CTkLabel(top, text="System prompt:", font=ctk.CTkFont(size=12),
-                     text_color="#888899").pack(side="right", padx=(0, 4))
+                     text_color="#64748b").pack(side="right", padx=(0, 4))
 
-        self._sys_entry = ctk.CTkEntry(top, font=ctk.CTkFont(size=12), width=240, height=28,
+        self._sys_entry = ctk.CTkEntry(top, font=ctk.CTkFont(size=12), width=240, height=30,
                                        placeholder_text="Optional system message")
-        self._sys_entry.pack(side="right", pady=8)
+        self._sys_entry.pack(side="right", pady=9)
 
         # ---- Scrollable message area ----
-        self._scroll = ctk.CTkScrollableFrame(self, fg_color="#111120", corner_radius=0)
+        self._scroll = ctk.CTkScrollableFrame(self, fg_color=_CHAT_BG, corner_radius=0)
         self._scroll.pack(fill="both", expand=True)
 
         # ---- Status bar ----
         self._status = ctk.CTkLabel(
             self, text="", font=ctk.CTkFont(size=11),
-            text_color="#888899", anchor="w", height=20,
+            text_color="#64748b", anchor="w", height=22,
         )
         self._status.pack(fill="x", padx=14)
 
         # ---- Input row ----
-        input_row = ctk.CTkFrame(self, fg_color="#13131f", corner_radius=0, height=70)
+        input_row = ctk.CTkFrame(self, fg_color="#ffffff", corner_radius=0, height=72,
+                                 border_width=1, border_color="#e2e8f0")
         input_row.pack(fill="x", side="bottom")
         input_row.pack_propagate(False)
 
         self._input = ctk.CTkTextbox(
             input_row,
             font=ctk.CTkFont(size=13),
-            height=50,
-            fg_color="#1e1e2e",
+            height=52,
+            fg_color="#f8fafc",
             border_width=1,
-            border_color="#333344",
+            border_color="#e2e8f0",
+            text_color="#0f172a",
             wrap="word",
         )
         self._input.pack(side="left", fill="both", expand=True, padx=(12, 6), pady=10)

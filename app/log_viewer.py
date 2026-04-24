@@ -77,8 +77,10 @@ class LogViewerWidget(ctk.CTkFrame):
             wrap="word",
             font=ctk.CTkFont(family="Consolas", size=11),
             state="disabled",
-            fg_color="#1a1a2e",
-            text_color="#c9d1d9",
+            fg_color="#f8fafc",
+            text_color="#334155",
+            border_width=1,
+            border_color="#e2e8f0",
         )
         self._textbox.pack(fill="both", expand=True, padx=4, pady=4)
 

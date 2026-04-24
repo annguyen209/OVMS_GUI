@@ -23,22 +23,25 @@ from app.chat import ChatTab
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Palette
+# Palette — light theme
 # ---------------------------------------------------------------------------
-ctk.set_appearance_mode("dark")
+ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-_GREEN  = "#2ecc71"
-_RED    = "#e74c3c"
-_YELLOW = "#f1c40f"
-_BLUE   = "#3b82f6"
-_GRAY   = "#4a4a5a"
-_BG     = "#0f0f1a"
-_CARD   = "#1a1a2e"
-_CARD2  = "#16213e"
-_BORDER = "#2a2a3e"
-_TEXT   = "#e2e8f0"
-_MUTED  = "#64748b"
+_GREEN  = "#16a34a"   # green-600
+_RED    = "#dc2626"   # red-600
+_YELLOW = "#d97706"   # amber-600
+_BLUE   = "#2563eb"   # blue-600
+_GRAY   = "#64748b"   # slate-500
+_BG     = "#f1f5f9"   # slate-100  — page background
+_CARD   = "#ffffff"   # white      — card surfaces
+_CARD2  = "#f8fafc"   # slate-50   — secondary / code surfaces
+_BORDER = "#e2e8f0"   # slate-200  — dividers & card borders
+_TEXT   = "#0f172a"   # slate-900  — primary text
+_TEXT2  = "#334155"   # slate-700  — secondary text
+_MUTED  = "#94a3b8"   # slate-400  — muted / placeholder
+_BANNER = "#0f172a"   # slate-900  — banner bg (dark contrast header)
+_FOOTER = "#1e293b"   # slate-800  — footer bg
 
 _POLL_MS = 3000
 APP_VERSION = "1.0.0"
@@ -52,10 +55,10 @@ APP_AUTHOR  = "anzdev4life"
 def _section_header(parent, text: str):
     f = ctk.CTkFrame(parent, fg_color="transparent")
     f.pack(fill="x", padx=18, pady=(14, 4))
-    ctk.CTkLabel(f, text=text, font=ctk.CTkFont(size=11, weight="bold"),
+    ctk.CTkLabel(f, text=text, font=ctk.CTkFont(size=10, weight="bold"),
                  text_color=_MUTED).pack(side="left")
     ctk.CTkFrame(f, height=1, fg_color=_BORDER).pack(side="left", fill="x",
-                                                       expand=True, padx=(10, 0))
+                                                       expand=True, padx=(8, 0))
 
 
 # ---------------------------------------------------------------------------
@@ -64,37 +67,36 @@ def _section_header(parent, text: str):
 
 class StatusCard(ctk.CTkFrame):
     def __init__(self, master, title: str, icon: str = "", **kwargs):
-        kwargs.setdefault("corner_radius", 12)
+        kwargs.setdefault("corner_radius", 14)
         kwargs.setdefault("fg_color", _CARD)
         kwargs.setdefault("border_width", 1)
         kwargs.setdefault("border_color", _BORDER)
         super().__init__(master, **kwargs)
 
         top = ctk.CTkFrame(self, fg_color="transparent")
-        top.pack(fill="x", padx=14, pady=(12, 4))
+        top.pack(fill="x", padx=16, pady=(14, 2))
 
         if icon:
-            ctk.CTkLabel(top, text=icon, font=ctk.CTkFont(size=16),
+            ctk.CTkLabel(top, text=icon, font=ctk.CTkFont(size=15),
                          text_color=_MUTED).pack(side="left", padx=(0, 6))
 
         ctk.CTkLabel(top, text=title, font=ctk.CTkFont(size=11, weight="bold"),
                      text_color=_MUTED, anchor="w").pack(side="left")
 
-        # Status dot
+        # Status dot (canvas bg must match card bg for clean render)
         self._canvas = tk.Canvas(top, width=10, height=10,
                                  bg=_CARD, highlightthickness=0)
         self._canvas.pack(side="right")
         self._dot = self._canvas.create_oval(1, 1, 9, 9, fill=_GRAY, outline="")
 
         self._value_lbl = ctk.CTkLabel(
-            self, text="—", font=ctk.CTkFont(size=18, weight="bold"),
+            self, text="—", font=ctk.CTkFont(size=20, weight="bold"),
             text_color=_TEXT, anchor="w",
         )
-        self._value_lbl.pack(anchor="w", padx=14, pady=(0, 12))
+        self._value_lbl.pack(anchor="w", padx=16, pady=(4, 14))
 
     def set_status(self, text: str, color: str = _GRAY):
         self._canvas.itemconfigure(self._dot, fill=color)
-        self._canvas.configure(bg=_CARD)
         self._value_lbl.configure(text=text, text_color=color if color != _GRAY else _TEXT)
 
 
@@ -106,48 +108,47 @@ class EndpointPanel(ctk.CTkFrame):
     """Shows the OpenAI-compatible endpoint URL + model for copy-paste."""
 
     def __init__(self, master, **kwargs):
-        kwargs.setdefault("corner_radius", 12)
-        kwargs.setdefault("fg_color", _CARD2)
+        kwargs.setdefault("corner_radius", 14)
+        kwargs.setdefault("fg_color", _CARD)
         kwargs.setdefault("border_width", 1)
         kwargs.setdefault("border_color", _BORDER)
         super().__init__(master, **kwargs)
 
-        # Header
         hdr = ctk.CTkFrame(self, fg_color="transparent")
-        hdr.pack(fill="x", padx=14, pady=(10, 6))
+        hdr.pack(fill="x", padx=16, pady=(12, 6))
         ctk.CTkLabel(hdr, text="OpenAI-Compatible Endpoint",
                      font=ctk.CTkFont(size=12, weight="bold"),
-                     text_color=_MUTED).pack(side="left")
-        ctk.CTkLabel(hdr, text="Use in Continue.dev · OpenCode · any OpenAI SDK",
+                     text_color=_TEXT2).pack(side="left")
+        ctk.CTkLabel(hdr, text="Continue.dev · OpenCode · any OpenAI SDK client",
                      font=ctk.CTkFont(size=10), text_color=_MUTED).pack(side="right")
 
-        # Rows
         self._url_var   = tk.StringVar()
         self._model_var = tk.StringVar()
 
         self._build_row("Base URL", self._url_var,   _BLUE)
-        self._build_row("Model",    self._model_var, _YELLOW)
+        self._build_row("Model",    self._model_var, _GREEN)
 
         self.refresh()
 
     def _build_row(self, label: str, var: tk.StringVar, accent: str):
-        row = ctk.CTkFrame(self, fg_color="#111128", corner_radius=8)
+        row = ctk.CTkFrame(self, fg_color=_CARD2, corner_radius=8,
+                           border_width=1, border_color=_BORDER)
         row.pack(fill="x", padx=12, pady=(0, 8))
 
         ctk.CTkLabel(row, text=label, width=72,
                      font=ctk.CTkFont(size=11, weight="bold"),
-                     text_color=accent, anchor="w").pack(side="left", padx=(10, 6), pady=8)
+                     text_color=accent, anchor="w").pack(side="left", padx=(12, 6), pady=9)
 
-        lbl = ctk.CTkLabel(row, textvariable=var,
-                           font=ctk.CTkFont(family="Consolas", size=12),
-                           text_color=_TEXT, anchor="w")
-        lbl.pack(side="left", fill="x", expand=True, pady=8)
+        ctk.CTkLabel(row, textvariable=var,
+                     font=ctk.CTkFont(family="Consolas", size=12),
+                     text_color=_TEXT, anchor="w").pack(side="left", fill="x", expand=True)
 
-        ctk.CTkButton(row, text="Copy", width=56, height=26,
+        ctk.CTkButton(row, text="Copy", width=56, height=28,
                       font=ctk.CTkFont(size=11),
-                      fg_color=_BORDER, hover_color="#3a3a5a",
+                      fg_color=_BORDER, hover_color="#cbd5e1",
+                      text_color=_TEXT2,
                       command=lambda v=var: self._copy(v.get()),
-                      ).pack(side="right", padx=8, pady=6)
+                      ).pack(side="right", padx=8, pady=5)
 
     def _copy(self, text: str):
         self.clipboard_clear()
@@ -197,7 +198,7 @@ class DashboardTab(ctk.CTkFrame):
         # ---- Controls ----
         _section_header(self, "CONTROLS")
 
-        ctrl = ctk.CTkFrame(self, fg_color=_CARD, corner_radius=12,
+        ctrl = ctk.CTkFrame(self, fg_color=_CARD, corner_radius=14,
                              border_width=1, border_color=_BORDER)
         ctrl.pack(fill="x", padx=16, pady=(0, 4))
 
@@ -214,7 +215,7 @@ class DashboardTab(ctk.CTkFrame):
 
         self._status_msg = ctk.CTkLabel(
             btn_row, text="", font=ctk.CTkFont(size=12),
-            text_color=_MUTED, anchor="w", wraplength=560,
+            text_color=_TEXT2, anchor="w", wraplength=560,
         )
         self._status_msg.pack(side="left", padx=14, fill="x", expand=True)
 
@@ -298,8 +299,10 @@ class ModelRow(ctk.CTkFrame):
     """
 
     def __init__(self, master, model: ModelInfo, server: ServerManager, notify_cb, **kwargs):
-        kwargs.setdefault("fg_color", "#1e1e2e")
-        kwargs.setdefault("corner_radius", 8)
+        kwargs.setdefault("fg_color", _CARD)
+        kwargs.setdefault("corner_radius", 10)
+        kwargs.setdefault("border_width", 1)
+        kwargs.setdefault("border_color", _BORDER)
         super().__init__(master, **kwargs)
         self._model    = model
         self._server   = server
@@ -331,7 +334,7 @@ class ModelRow(ctk.CTkFrame):
                 info_frame,
                 text=self._model.notes,
                 font=ctk.CTkFont(size=11),
-                text_color="#888899",
+                text_color=_MUTED,
                 anchor="w",
             ).pack(anchor="w")
 
@@ -340,7 +343,7 @@ class ModelRow(ctk.CTkFrame):
             self,
             text=self._model.size_label,
             font=ctk.CTkFont(size=12),
-            text_color="#aaaacc",
+            text_color=_TEXT2,
         ).grid(row=0, column=1, padx=4, pady=10)
 
         # Status label
@@ -382,17 +385,17 @@ class ModelRow(ctk.CTkFrame):
             self._btn.configure(
                 text="Activate",
                 state="normal",
-                fg_color="#3a7ebf",
-                hover_color="#2a6eaf",
+                fg_color=_BLUE,
+                hover_color="#1d4ed8",
             )
         else:
-            self._status_lbl.configure(text="Not downloaded", text_color=_GRAY)
+            self._status_lbl.configure(text="Not downloaded", text_color=_MUTED)
             self._progress_bar.grid_remove()
             self._btn.configure(
                 text="Download",
                 state="normal",
-                fg_color="#5a5a8f",
-                hover_color="#4a4a7f",
+                fg_color=_GRAY,
+                hover_color="#475569",
             )
 
     def _on_btn_click(self):
@@ -496,7 +499,8 @@ class ModelsTab(ctk.CTkFrame):
         self._notif_bar.pack(fill="x", padx=20, pady=(12, 4))
 
         # Column headers
-        header = ctk.CTkFrame(self, fg_color="#13131f", corner_radius=6)
+        header = ctk.CTkFrame(self, fg_color=_CARD2, corner_radius=8,
+                              border_width=1, border_color=_BORDER)
         header.pack(fill="x", padx=16, pady=(0, 6))
         header.columnconfigure(0, weight=4)
         header.columnconfigure(1, weight=1)
@@ -507,9 +511,9 @@ class ModelsTab(ctk.CTkFrame):
             ctk.CTkLabel(
                 header,
                 text=text,
-                font=ctk.CTkFont(size=12, weight="bold"),
-                text_color="#888899",
-            ).grid(row=0, column=col, padx=12 if col == 0 else 4, pady=6, sticky="w")
+                font=ctk.CTkFont(size=11, weight="bold"),
+                text_color=_MUTED,
+            ).grid(row=0, column=col, padx=12 if col == 0 else 4, pady=8, sticky="w")
 
         # Scrollable list area
         self._scroll = ctk.CTkScrollableFrame(
@@ -690,35 +694,34 @@ class App(ctk.CTk):
     def _build_ui(self):
         self.configure(fg_color=_BG)
 
-        banner = ctk.CTkFrame(self, height=56, fg_color="#080814", corner_radius=0)
+        banner = ctk.CTkFrame(self, height=56, fg_color=_BANNER, corner_radius=0)
         banner.pack(fill="x", side="top")
         banner.pack_propagate(False)
 
-        # Left: logo dot + title
         left = ctk.CTkFrame(banner, fg_color="transparent")
         left.pack(side="left", padx=18, pady=10)
 
-        dot_canvas = tk.Canvas(left, width=12, height=12, bg="#080814", highlightthickness=0)
+        dot_canvas = tk.Canvas(left, width=12, height=12, bg=_BANNER, highlightthickness=0)
         dot_canvas.pack(side="left", padx=(0, 10))
         dot_canvas.create_oval(1, 1, 11, 11, fill=_GREEN, outline="")
 
         ctk.CTkLabel(left, text="OVMS Manager",
                      font=ctk.CTkFont(size=16, weight="bold"),
-                     text_color=_TEXT).pack(side="left")
+                     text_color="#f8fafc").pack(side="left")
 
         ctk.CTkLabel(left, text="  ·  OpenVINO Model Server",
-                     font=ctk.CTkFont(size=12), text_color=_MUTED).pack(side="left")
+                     font=ctk.CTkFont(size=12), text_color="#64748b").pack(side="left")
 
-        # Right: quit button
         ctk.CTkButton(
             banner, text="Quit", width=64, height=30,
             font=ctk.CTkFont(size=11),
-            fg_color=_BORDER, hover_color=_RED, corner_radius=6,
+            fg_color="#1e293b", hover_color=_RED, corner_radius=6,
+            text_color="#f8fafc",
             command=self._quit,
         ).pack(side="right", padx=18)
 
         # Footer
-        footer = ctk.CTkFrame(self, height=28, fg_color="#080814", corner_radius=0)
+        footer = ctk.CTkFrame(self, height=28, fg_color=_FOOTER, corner_radius=0)
         footer.pack(fill="x", side="bottom")
         footer.pack_propagate(False)
 
@@ -726,23 +729,21 @@ class App(ctk.CTk):
             footer,
             text=f"OVMS Manager  v{APP_VERSION}",
             font=ctk.CTkFont(size=10),
-            text_color=_MUTED,
+            text_color="#64748b",
         ).pack(side="left", padx=16)
 
         ctk.CTkLabel(
-            footer,
-            text=f"by {APP_AUTHOR}",
-            font=ctk.CTkFont(size=10),
-            text_color=_MUTED,
+            footer, text=f"by {APP_AUTHOR}",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            text_color="#94a3b8",
         ).pack(side="right", padx=16)
 
-        ctk.CTkFrame(footer, width=1, fg_color=_BORDER).pack(side="right")
+        ctk.CTkFrame(footer, width=1, fg_color="#334155").pack(side="right")
 
         ctk.CTkLabel(
-            footer,
-            text="github.com/annguyen209/OVMS_GUI",
+            footer, text="github.com/annguyen209/OVMS_GUI",
             font=ctk.CTkFont(size=10),
-            text_color=_MUTED,
+            text_color="#64748b",
         ).pack(side="right", padx=16)
 
         self._tabs = ctk.CTkTabview(self, anchor="nw")
