@@ -23,59 +23,138 @@ from app.chat import ChatTab
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Theme
+# Palette
 # ---------------------------------------------------------------------------
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 _GREEN  = "#2ecc71"
 _RED    = "#e74c3c"
-_YELLOW = "#f39c12"
-_GRAY   = "#555566"
+_YELLOW = "#f1c40f"
+_BLUE   = "#3b82f6"
+_GRAY   = "#4a4a5a"
+_BG     = "#0f0f1a"
+_CARD   = "#1a1a2e"
+_CARD2  = "#16213e"
+_BORDER = "#2a2a3e"
+_TEXT   = "#e2e8f0"
+_MUTED  = "#64748b"
 
-_POLL_MS = 3000   # GUI status-card refresh interval (ms)
+_POLL_MS = 3000
 
 
 # ---------------------------------------------------------------------------
-# Status indicator (coloured dot + label)
+# Section header helper
+# ---------------------------------------------------------------------------
+
+def _section_header(parent, text: str):
+    f = ctk.CTkFrame(parent, fg_color="transparent")
+    f.pack(fill="x", padx=18, pady=(14, 4))
+    ctk.CTkLabel(f, text=text, font=ctk.CTkFont(size=11, weight="bold"),
+                 text_color=_MUTED).pack(side="left")
+    ctk.CTkFrame(f, height=1, fg_color=_BORDER).pack(side="left", fill="x",
+                                                       expand=True, padx=(10, 0))
+
+
+# ---------------------------------------------------------------------------
+# Status card  (dot + title + value)
 # ---------------------------------------------------------------------------
 
 class StatusCard(ctk.CTkFrame):
-    """Small card: title label + coloured status dot + status text."""
-
-    def __init__(self, master, title: str, **kwargs):
-        kwargs.setdefault("corner_radius", 10)
-        kwargs.setdefault("fg_color", "#1e1e2e")
+    def __init__(self, master, title: str, icon: str = "", **kwargs):
+        kwargs.setdefault("corner_radius", 12)
+        kwargs.setdefault("fg_color", _CARD)
+        kwargs.setdefault("border_width", 1)
+        kwargs.setdefault("border_color", _BORDER)
         super().__init__(master, **kwargs)
 
-        ctk.CTkLabel(
-            self,
-            text=title,
-            font=ctk.CTkFont(size=12, weight="bold"),
-            text_color="#aaaacc",
-        ).pack(anchor="w", padx=14, pady=(10, 2))
+        top = ctk.CTkFrame(self, fg_color="transparent")
+        top.pack(fill="x", padx=14, pady=(12, 4))
 
-        row = ctk.CTkFrame(self, fg_color="transparent")
-        row.pack(anchor="w", padx=14, pady=(0, 10))
+        if icon:
+            ctk.CTkLabel(top, text=icon, font=ctk.CTkFont(size=16),
+                         text_color=_MUTED).pack(side="left", padx=(0, 6))
 
-        # Dot (a small canvas circle) – use standard tk.Canvas, not CTkCanvas
-        self._canvas = tk.Canvas(
-            row, width=14, height=14,
-            bg="#1e1e2e", highlightthickness=0,
+        ctk.CTkLabel(top, text=title, font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color=_MUTED, anchor="w").pack(side="left")
+
+        # Status dot
+        self._canvas = tk.Canvas(top, width=10, height=10,
+                                 bg=_CARD, highlightthickness=0)
+        self._canvas.pack(side="right")
+        self._dot = self._canvas.create_oval(1, 1, 9, 9, fill=_GRAY, outline="")
+
+        self._value_lbl = ctk.CTkLabel(
+            self, text="—", font=ctk.CTkFont(size=18, weight="bold"),
+            text_color=_TEXT, anchor="w",
         )
-        self._canvas.pack(side="left", padx=(0, 8))
-        self._dot = self._canvas.create_oval(1, 1, 13, 13, fill=_GRAY, outline="")
-
-        self._value_label = ctk.CTkLabel(
-            row,
-            text="Unknown",
-            font=ctk.CTkFont(size=13),
-        )
-        self._value_label.pack(side="left")
+        self._value_lbl.pack(anchor="w", padx=14, pady=(0, 12))
 
     def set_status(self, text: str, color: str = _GRAY):
         self._canvas.itemconfigure(self._dot, fill=color)
-        self._value_label.configure(text=text)
+        self._canvas.configure(bg=_CARD)
+        self._value_lbl.configure(text=text, text_color=color if color != _GRAY else _TEXT)
+
+
+# ---------------------------------------------------------------------------
+# Endpoint panel
+# ---------------------------------------------------------------------------
+
+class EndpointPanel(ctk.CTkFrame):
+    """Shows the OpenAI-compatible endpoint URL + model for copy-paste."""
+
+    def __init__(self, master, **kwargs):
+        kwargs.setdefault("corner_radius", 12)
+        kwargs.setdefault("fg_color", _CARD2)
+        kwargs.setdefault("border_width", 1)
+        kwargs.setdefault("border_color", _BORDER)
+        super().__init__(master, **kwargs)
+
+        # Header
+        hdr = ctk.CTkFrame(self, fg_color="transparent")
+        hdr.pack(fill="x", padx=14, pady=(10, 6))
+        ctk.CTkLabel(hdr, text="OpenAI-Compatible Endpoint",
+                     font=ctk.CTkFont(size=12, weight="bold"),
+                     text_color=_MUTED).pack(side="left")
+        ctk.CTkLabel(hdr, text="Use in Continue.dev · OpenCode · any OpenAI SDK",
+                     font=ctk.CTkFont(size=10), text_color=_MUTED).pack(side="right")
+
+        # Rows
+        self._url_var   = tk.StringVar()
+        self._model_var = tk.StringVar()
+
+        self._build_row("Base URL", self._url_var,   _BLUE)
+        self._build_row("Model",    self._model_var, _YELLOW)
+
+        self.refresh()
+
+    def _build_row(self, label: str, var: tk.StringVar, accent: str):
+        row = ctk.CTkFrame(self, fg_color="#111128", corner_radius=8)
+        row.pack(fill="x", padx=12, pady=(0, 8))
+
+        ctk.CTkLabel(row, text=label, width=72,
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color=accent, anchor="w").pack(side="left", padx=(10, 6), pady=8)
+
+        lbl = ctk.CTkLabel(row, textvariable=var,
+                           font=ctk.CTkFont(family="Consolas", size=12),
+                           text_color=_TEXT, anchor="w")
+        lbl.pack(side="left", fill="x", expand=True, pady=8)
+
+        ctk.CTkButton(row, text="Copy", width=56, height=26,
+                      font=ctk.CTkFont(size=11),
+                      fg_color=_BORDER, hover_color="#3a3a5a",
+                      command=lambda v=var: self._copy(v.get()),
+                      ).pack(side="right", padx=8, pady=6)
+
+    def _copy(self, text: str):
+        self.clipboard_clear()
+        self.clipboard_append(text)
+
+    def refresh(self):
+        model = read_active_model_name() or "—"
+        self._url_var.set(f"http://localhost:{cfg.proxy_port}/v3")
+        self._model_var.set(model)
 
 
 # ---------------------------------------------------------------------------
@@ -87,69 +166,66 @@ class DashboardTab(ctk.CTkFrame):
     def __init__(self, master, server: ServerManager, **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
         self._server = server
-        self._stack_busy = False   # prevent double-click during start/stop
+        self._stack_busy = False
 
         self._build_ui()
         self._schedule_poll()
 
     def _build_ui(self):
-        # ---- Status cards row ----
-        cards_frame = ctk.CTkFrame(self, fg_color="transparent")
-        cards_frame.pack(fill="x", padx=16, pady=(16, 8))
+        # ---- Status cards ----
+        _section_header(self, "SERVER STATUS")
 
-        self._card_ovms   = StatusCard(cards_frame, "OVMS Server")
-        self._card_proxy  = StatusCard(cards_frame, "Proxy")
-        self._card_model  = StatusCard(cards_frame, "Active Model")
+        cards = ctk.CTkFrame(self, fg_color="transparent")
+        cards.pack(fill="x", padx=16, pady=(0, 4))
+        cards.columnconfigure((0, 1, 2), weight=1)
 
-        for card in (self._card_ovms, self._card_proxy, self._card_model):
-            card.pack(side="left", expand=True, fill="both", padx=6)
+        self._card_ovms  = StatusCard(cards, "OVMS Server", icon="⚙")
+        self._card_proxy = StatusCard(cards, "Proxy",       icon="⇄")
+        self._card_model = StatusCard(cards, "Active Model",icon="◈")
 
-        # ---- Start / Stop button ----
-        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=16, pady=8)
+        self._card_ovms .grid(row=0, column=0, padx=(0, 5), pady=0, sticky="nsew")
+        self._card_proxy.grid(row=0, column=1, padx=5,      pady=0, sticky="nsew")
+        self._card_model.grid(row=0, column=2, padx=(5, 0), pady=0, sticky="nsew")
+
+        # ---- Endpoint panel ----
+        _section_header(self, "ENDPOINT")
+        self._endpoint_panel = EndpointPanel(self)
+        self._endpoint_panel.pack(fill="x", padx=16, pady=(0, 4))
+
+        # ---- Controls ----
+        _section_header(self, "CONTROLS")
+
+        ctrl = ctk.CTkFrame(self, fg_color=_CARD, corner_radius=12,
+                             border_width=1, border_color=_BORDER)
+        ctrl.pack(fill="x", padx=16, pady=(0, 4))
+
+        btn_row = ctk.CTkFrame(ctrl, fg_color="transparent")
+        btn_row.pack(fill="x", padx=14, pady=12)
 
         self._action_btn = ctk.CTkButton(
-            btn_frame,
-            text="Start Stack",
-            width=200,
-            height=46,
-            font=ctk.CTkFont(size=15, weight="bold"),
-            fg_color="#2ecc71",
-            hover_color="#27ae60",
-            command=self._on_action_click,
+            btn_row, text="Start Stack", width=160, height=42,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color=_GREEN, hover_color="#27ae60",
+            corner_radius=8, command=self._on_action_click,
         )
-        self._action_btn.pack(side="left", padx=6)
+        self._action_btn.pack(side="left")
 
         self._status_msg = ctk.CTkLabel(
-            btn_frame,
-            text="",
-            font=ctk.CTkFont(size=12),
-            text_color="#aaaaaa",
-            anchor="w",
-            wraplength=500,
+            btn_row, text="", font=ctk.CTkFont(size=12),
+            text_color=_MUTED, anchor="w", wraplength=560,
         )
-        self._status_msg.pack(side="left", padx=12, fill="x", expand=True)
+        self._status_msg.pack(side="left", padx=14, fill="x", expand=True)
 
-        # ---- Log viewer ----
-        log_label = ctk.CTkLabel(
-            self,
-            text="OVMS Server Log (last 20 lines)",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            anchor="w",
-        )
-        log_label.pack(fill="x", padx=22, pady=(8, 2))
-
+        # ---- Log ----
+        _section_header(self, "SERVER LOG")
         self._log_viewer = LogViewerWidget(
-            self,
-            log_path=cfg.ovms_log,
-            tail_lines=20,
-            refresh_ms=2000,
+            self, log_path=cfg.ovms_log, tail_lines=25, refresh_ms=2000,
         )
-        self._log_viewer.pack(fill="both", expand=True, padx=16, pady=(0, 16))
+        self._log_viewer.pack(fill="both", expand=True, padx=16, pady=(0, 12))
         self._log_viewer.start()
 
     # ------------------------------------------------------------------
-    # Status polling
+    # Polling
     # ------------------------------------------------------------------
 
     def _schedule_poll(self):
@@ -160,77 +236,49 @@ class DashboardTab(ctk.CTkFrame):
         self._schedule_poll()
 
     def _refresh_cards(self):
-        ovms_up   = self._server.ovms_running
-        proxy_up  = self._server.proxy_running
+        ovms_up    = self._server.ovms_running
+        proxy_up   = self._server.proxy_running
         model_name = read_active_model_name()
 
-        if ovms_up:
-            self._card_ovms.set_status("Running", _GREEN)
-        else:
-            self._card_ovms.set_status("Stopped", _RED)
+        self._card_ovms.set_status("Running" if ovms_up else "Stopped",
+                                   _GREEN if ovms_up else _RED)
+        self._card_proxy.set_status("Running" if proxy_up else "Stopped",
+                                    _GREEN if proxy_up else _RED)
+        self._card_model.set_status(model_name or "None",
+                                    _YELLOW if model_name else _GRAY)
+        self._endpoint_panel.refresh()
 
-        if proxy_up:
-            self._card_proxy.set_status("Running", _GREEN)
-        else:
-            self._card_proxy.set_status("Stopped", _RED)
-
-        if model_name:
-            self._card_model.set_status(model_name, _YELLOW)
-        else:
-            self._card_model.set_status("None", _GRAY)
-
-        # Update button appearance based on server state
         if not self._stack_busy:
             if ovms_up or proxy_up:
-                self._action_btn.configure(
-                    text="Stop Stack",
-                    fg_color=_RED,
-                    hover_color="#c0392b",
-                )
+                self._action_btn.configure(text="Stop Stack",
+                                           fg_color=_RED, hover_color="#c0392b")
             else:
-                self._action_btn.configure(
-                    text="Start Stack",
-                    fg_color=_GREEN,
-                    hover_color="#27ae60",
-                )
+                self._action_btn.configure(text="Start Stack",
+                                           fg_color=_GREEN, hover_color="#27ae60")
 
     # ------------------------------------------------------------------
-    # Button handler
+    # Button
     # ------------------------------------------------------------------
 
     def _on_action_click(self):
         if self._stack_busy:
             return
-
-        ovms_up  = self._server.ovms_running
-        proxy_up = self._server.proxy_running
-        stopping = ovms_up or proxy_up
-
+        stopping = self._server.ovms_running or self._server.proxy_running
         self._stack_busy = True
-        self._action_btn.configure(
-            state="disabled",
-            text="Please wait…",
-            fg_color=_GRAY,
-        )
-        self._status_msg.configure(text="Working…", text_color="#f39c12")
+        self._action_btn.configure(state="disabled", text="Please wait…", fg_color=_GRAY)
+        self._status_msg.configure(text="Working…", text_color=_YELLOW)
 
         def _worker():
-            if stopping:
-                ok, msg = self._server.stop_stack()
-            else:
-                ok, msg = self._server.start_stack()
-
-            # Schedule GUI update back on the main thread
+            ok, msg = self._server.stop_stack() if stopping else self._server.start_stack()
             self.after(0, lambda: self._on_action_done(ok, msg))
 
         threading.Thread(target=_worker, daemon=True).start()
 
     def _on_action_done(self, ok: bool, msg: str):
         self._stack_busy = False
-        color = "#aaffaa" if ok else "#ffaaaa"
-        self._status_msg.configure(text=msg, text_color=color)
+        self._status_msg.configure(text=msg,
+                                   text_color=_GREEN if ok else _RED)
         self._action_btn.configure(state="normal")
-        # Immediately refresh status cards
         self._refresh_cards()
 
     def on_destroy(self):
@@ -638,23 +686,34 @@ class App(ctk.CTk):
     # ------------------------------------------------------------------
 
     def _build_ui(self):
-        banner = ctk.CTkFrame(self, height=52, fg_color="#0d0d1a", corner_radius=0)
+        self.configure(fg_color=_BG)
+
+        banner = ctk.CTkFrame(self, height=56, fg_color="#080814", corner_radius=0)
         banner.pack(fill="x", side="top")
         banner.pack_propagate(False)
 
-        ctk.CTkLabel(
-            banner,
-            text="OVMS Model Server Manager",
-            font=ctk.CTkFont(size=17, weight="bold"),
-            text_color="#e0e0ff",
-        ).pack(side="left", padx=20, pady=14)
+        # Left: logo dot + title
+        left = ctk.CTkFrame(banner, fg_color="transparent")
+        left.pack(side="left", padx=18, pady=10)
 
-        ctk.CTkLabel(
-            banner,
-            text="OpenVINO Model Server",
+        dot_canvas = tk.Canvas(left, width=12, height=12, bg="#080814", highlightthickness=0)
+        dot_canvas.pack(side="left", padx=(0, 10))
+        dot_canvas.create_oval(1, 1, 11, 11, fill=_GREEN, outline="")
+
+        ctk.CTkLabel(left, text="OVMS Manager",
+                     font=ctk.CTkFont(size=16, weight="bold"),
+                     text_color=_TEXT).pack(side="left")
+
+        ctk.CTkLabel(left, text="  ·  OpenVINO Model Server",
+                     font=ctk.CTkFont(size=12), text_color=_MUTED).pack(side="left")
+
+        # Right: quit button
+        ctk.CTkButton(
+            banner, text="Quit", width=64, height=30,
             font=ctk.CTkFont(size=11),
-            text_color="#666688",
-        ).pack(side="right", padx=20)
+            fg_color=_BORDER, hover_color=_RED, corner_radius=6,
+            command=self._quit,
+        ).pack(side="right", padx=18)
 
         self._tabs = ctk.CTkTabview(self, anchor="nw")
         self._tabs.pack(fill="both", expand=True, padx=12, pady=12)
