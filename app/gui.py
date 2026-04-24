@@ -9,6 +9,7 @@ Tabs:
 import logging
 import threading
 import tkinter as tk
+from tkinter import filedialog
 from pathlib import Path
 
 import customtkinter as ctk
@@ -16,6 +17,7 @@ import customtkinter as ctk
 from app.server import ServerManager
 from app.models import CURATED_MODELS, ModelInfo, download_model, activate_model, read_active_model_name
 from app.log_viewer import LogViewerWidget
+from app.config import cfg
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +31,6 @@ _GREEN  = "#2ecc71"
 _RED    = "#e74c3c"
 _YELLOW = "#f39c12"
 _GRAY   = "#555566"
-
-OVMS_LOG  = r"C:\Users\annguyen209\ovms-server.log"
-PROXY_LOG = r"C:\Users\annguyen209\ovms-proxy.log"
 
 _POLL_MS = 3000   # GUI status-card refresh interval (ms)
 
@@ -141,7 +140,7 @@ class DashboardTab(ctk.CTkFrame):
 
         self._log_viewer = LogViewerWidget(
             self,
-            log_path=OVMS_LOG,
+            log_path=cfg.ovms_log,
             tail_lines=20,
             refresh_ms=2000,
         )
@@ -495,6 +494,120 @@ class ModelsTab(ctk.CTkFrame):
 
 
 # ---------------------------------------------------------------------------
+# Settings Tab
+# ---------------------------------------------------------------------------
+
+class SettingsTab(ctk.CTkFrame):
+    """Form for editing all configurable paths and ports."""
+
+    # (key, label, type)  type = "dir" | "file" | "port" | "text"
+    _FIELDS = [
+        ("models_dir",    "Models Directory",       "dir"),
+        ("ovms_exe",      "OVMS Executable",        "file"),
+        ("ovms_workspace","OVMS Workspace Directory","dir"),
+        ("setupvars",     "setupvars.bat Path",     "file"),
+        ("python_exe",    "Python Executable",      "file"),
+        ("proxy_script",  "Proxy Script",           "file"),
+        ("ovms_log",      "OVMS Log File",          "text"),
+        ("proxy_log",     "Proxy Log File",         "text"),
+        ("ovms_rest_port","OVMS REST Port",         "port"),
+        ("proxy_port",    "Proxy Port",             "port"),
+    ]
+
+    def __init__(self, master, **kwargs):
+        super().__init__(master, fg_color="transparent", **kwargs)
+        self._entries: dict[str, ctk.CTkEntry] = {}
+        self._build_ui()
+
+    def _build_ui(self):
+        ctk.CTkLabel(
+            self,
+            text="Paths & Ports",
+            font=ctk.CTkFont(size=15, weight="bold"),
+            anchor="w",
+        ).pack(fill="x", padx=20, pady=(16, 8))
+
+        scroll = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=16, pady=(0, 8))
+        scroll.columnconfigure(1, weight=1)
+
+        for row_idx, (key, label, kind) in enumerate(self._FIELDS):
+            ctk.CTkLabel(
+                scroll,
+                text=label,
+                font=ctk.CTkFont(size=12),
+                anchor="w",
+                width=200,
+            ).grid(row=row_idx, column=0, sticky="w", padx=(8, 12), pady=6)
+
+            entry = ctk.CTkEntry(scroll, font=ctk.CTkFont(size=12))
+            entry.insert(0, str(cfg.get(key, "")))
+            entry.grid(row=row_idx, column=1, sticky="ew", padx=(0, 8), pady=6)
+            self._entries[key] = entry
+
+            if kind in ("dir", "file"):
+                btn = ctk.CTkButton(
+                    scroll,
+                    text="Browse",
+                    width=70,
+                    height=28,
+                    font=ctk.CTkFont(size=11),
+                    command=lambda k=key, t=kind: self._browse(k, t),
+                )
+                btn.grid(row=row_idx, column=2, padx=(0, 8), pady=6)
+
+        # Save button
+        save_row = ctk.CTkFrame(self, fg_color="transparent")
+        save_row.pack(fill="x", padx=20, pady=(4, 16))
+
+        self._save_status = ctk.CTkLabel(
+            save_row, text="", font=ctk.CTkFont(size=12), text_color="#aaaaaa"
+        )
+        self._save_status.pack(side="left", padx=(0, 16))
+
+        ctk.CTkButton(
+            save_row,
+            text="Save Settings",
+            width=160,
+            height=38,
+            font=ctk.CTkFont(size=13, weight="bold"),
+            command=self._save,
+        ).pack(side="right")
+
+    def _browse(self, key: str, kind: str):
+        current = self._entries[key].get()
+        if kind == "dir":
+            path = filedialog.askdirectory(initialdir=current or "/", title=f"Select {key}")
+        else:
+            path = filedialog.askopenfilename(initialdir=str(Path(current).parent) if current else "/", title=f"Select {key}")
+        if path:
+            entry = self._entries[key]
+            entry.delete(0, "end")
+            entry.insert(0, path)
+
+    def _save(self):
+        updates = {}
+        for key, entry in self._entries.items():
+            val = entry.get().strip()
+            # Convert port fields to int
+            for _, _, kind in self._FIELDS:
+                pass
+            field_kind = next(k for k, l, k2 in self._FIELDS if k == key)[2] if False else \
+                         next((kind for k, l, kind in self._FIELDS if k == key), "text")
+            if field_kind == "port":
+                try:
+                    val = int(val)
+                except ValueError:
+                    self._save_status.configure(text=f"Invalid port for {key}", text_color=_RED)
+                    return
+            updates[key] = val
+
+        cfg.update(updates)
+        self._save_status.configure(text="Saved.", text_color=_GREEN)
+        self.after(3000, lambda: self._save_status.configure(text=""))
+
+
+# ---------------------------------------------------------------------------
 # Main Application Window
 # ---------------------------------------------------------------------------
 
@@ -506,19 +619,24 @@ class App(ctk.CTk):
         self.geometry("1000x720")
         self.minsize(800, 600)
 
-        # Window icon (best-effort)
         try:
             self.iconbitmap(default="")
         except Exception:
             pass
 
         self._server = ServerManager()
+        self._tray_icon = None
 
         self._build_ui()
+        self._setup_tray()
+        # Minimize to tray on close
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
+    # ------------------------------------------------------------------
+    # UI
+    # ------------------------------------------------------------------
+
     def _build_ui(self):
-        # Top banner
         banner = ctk.CTkFrame(self, height=52, fg_color="#0d0d1a", corner_radius=0)
         banner.pack(fill="x", side="top")
         banner.pack_propagate(False)
@@ -537,26 +655,73 @@ class App(ctk.CTk):
             text_color="#666688",
         ).pack(side="right", padx=20)
 
-        # Tab view
         self._tabs = ctk.CTkTabview(self, anchor="nw")
         self._tabs.pack(fill="both", expand=True, padx=12, pady=12)
 
         self._tabs.add("Dashboard")
         self._tabs.add("Models")
+        self._tabs.add("Settings")
 
-        self._dashboard = DashboardTab(
-            self._tabs.tab("Dashboard"),
-            server=self._server,
-        )
+        self._dashboard = DashboardTab(self._tabs.tab("Dashboard"), server=self._server)
         self._dashboard.pack(fill="both", expand=True)
 
-        self._models_tab = ModelsTab(
-            self._tabs.tab("Models"),
-            server=self._server,
-        )
+        self._models_tab = ModelsTab(self._tabs.tab("Models"), server=self._server)
         self._models_tab.pack(fill="both", expand=True)
 
+        self._settings_tab = SettingsTab(self._tabs.tab("Settings"))
+        self._settings_tab.pack(fill="both", expand=True)
+
+    # ------------------------------------------------------------------
+    # System tray
+    # ------------------------------------------------------------------
+
+    def _setup_tray(self):
+        try:
+            from PIL import Image, ImageDraw
+            import pystray
+
+            # Draw a simple green circle icon
+            img = Image.new("RGB", (64, 64), color="#0d0d1a")
+            draw = ImageDraw.Draw(img)
+            draw.ellipse([8, 8, 56, 56], fill="#2ecc71")
+
+            menu = pystray.Menu(
+                pystray.MenuItem("Show", self._tray_show, default=True),
+                pystray.MenuItem("Quit", self._tray_quit),
+            )
+            self._tray_icon = pystray.Icon("OVMS Manager", img, "OVMS Manager", menu)
+            threading.Thread(target=self._tray_icon.run, daemon=True).start()
+
+        except Exception as exc:
+            logger.warning("System tray unavailable: %s", exc)
+            self._tray_icon = None
+
+    def _tray_show(self):
+        self.after(0, self._show_window)
+
+    def _show_window(self):
+        self.deiconify()
+        self.lift()
+        self.focus_force()
+
+    def _tray_quit(self):
+        self.after(0, self._quit)
+
+    # ------------------------------------------------------------------
+    # Close / Quit
+    # ------------------------------------------------------------------
+
     def _on_close(self):
+        """Minimize to tray instead of quitting."""
+        self.withdraw()
+
+    def _quit(self):
+        """Actually exit the application."""
+        if self._tray_icon:
+            try:
+                self._tray_icon.stop()
+            except Exception:
+                pass
         try:
             self._dashboard.on_destroy()
         except Exception:

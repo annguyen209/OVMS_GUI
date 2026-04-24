@@ -14,23 +14,11 @@ import logging
 import os
 import httpx
 
+from app.config import cfg
+
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Paths – all hard-coded per the project spec
-# ---------------------------------------------------------------------------
-PYTHON_EXE   = r"C:\Users\annguyen209\openvino-env\Scripts\python.exe"
-OVMS_EXE     = r"C:\Users\annguyen209\ovms\ovms.exe"
-OVMS_CONFIG  = r"C:\Users\annguyen209\ovms-workspace\config.json"
-PROXY_SCRIPT = r"C:\Users\annguyen209\ovms-proxy.py"
-OVMS_LOG     = r"C:\Users\annguyen209\ovms-server.log"
-PROXY_LOG    = r"C:\Users\annguyen209\ovms-proxy.log"
-SETUPVARS    = r"C:\Users\annguyen209\ovms\setupvars.bat"
-
-OVMS_REST_PORT  = 8000
-PROXY_PORT      = 8001
-HEALTH_ENDPOINT = f"http://localhost:{OVMS_REST_PORT}/v3/models"
-HEALTH_TIMEOUT  = 5.0   # seconds per request
+HEALTH_TIMEOUT = 5.0  # seconds per request
 
 
 class ServerManager:
@@ -103,22 +91,15 @@ class ServerManager:
     # ------------------------------------------------------------------
 
     def _build_ovms_env(self) -> dict:
-        """
-        Build an environment dict that includes variables from setupvars.bat.
-        We call setupvars.bat via cmd /c and capture the resulting environment.
-        """
         env = os.environ.copy()
-        if not os.path.isfile(SETUPVARS):
-            logger.warning("setupvars.bat not found at %s – skipping", SETUPVARS)
+        setupvars = cfg.setupvars
+        if not os.path.isfile(setupvars):
+            logger.warning("setupvars.bat not found at %s – skipping", setupvars)
             return env
-
         try:
-            # Run: cmd /c "setupvars.bat && set"  to capture all env vars after setup
             result = subprocess.run(
-                ["cmd", "/c", f'"{SETUPVARS}" && set'],
-                capture_output=True,
-                text=True,
-                timeout=30,
+                ["cmd", "/c", f'"{setupvars}" && set'],
+                capture_output=True, text=True, timeout=30,
             )
             for line in result.stdout.splitlines():
                 if "=" in line:
@@ -126,42 +107,32 @@ class ServerManager:
                     env[key.strip()] = value.strip()
         except Exception as exc:
             logger.warning("Could not source setupvars.bat: %s", exc)
-
         return env
 
     def _start_ovms(self) -> tuple[bool, str]:
         with self._lock:
             if self._ovms_proc and self._ovms_proc.poll() is None:
                 return True, "OVMS already running."
-
         try:
             env = self._build_ovms_env()
-            log_fh = open(OVMS_LOG, "a", encoding="utf-8")
-
+            log_fh = open(cfg.ovms_log, "a", encoding="utf-8")
             cmd = [
-                OVMS_EXE,
-                "--config_path", OVMS_CONFIG,
-                "--port", "9000",           # gRPC port
-                "--rest_port", str(OVMS_REST_PORT),
+                cfg.ovms_exe,
+                "--config_path", str(cfg.config_json),
+                "--port", "9000",
+                "--rest_port", str(cfg.ovms_rest_port),
                 "--log_level", "INFO",
             ]
-
             proc = subprocess.Popen(
-                cmd,
-                stdout=log_fh,
-                stderr=log_fh,
-                env=env,
+                cmd, stdout=log_fh, stderr=log_fh, env=env,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
-
             with self._lock:
                 self._ovms_proc = proc
-
             logger.info("OVMS process started (pid=%d)", proc.pid)
             return True, f"OVMS started (pid={proc.pid})."
-
         except FileNotFoundError:
-            msg = f"ovms.exe not found at {OVMS_EXE}"
+            msg = f"ovms.exe not found at {cfg.ovms_exe}"
             logger.error(msg)
             return False, msg
         except Exception as exc:
@@ -172,25 +143,19 @@ class ServerManager:
         with self._lock:
             if self._proxy_proc and self._proxy_proc.poll() is None:
                 return True, "Proxy already running."
-
         try:
-            log_fh = open(PROXY_LOG, "a", encoding="utf-8")
-
+            log_fh = open(cfg.proxy_log, "a", encoding="utf-8")
             proc = subprocess.Popen(
-                [PYTHON_EXE, PROXY_SCRIPT],
-                stdout=log_fh,
-                stderr=log_fh,
+                [cfg.python_exe, cfg.proxy_script],
+                stdout=log_fh, stderr=log_fh,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
-
             with self._lock:
                 self._proxy_proc = proc
-
             logger.info("Proxy process started (pid=%d)", proc.pid)
             return True, f"Proxy started (pid={proc.pid})."
-
         except FileNotFoundError:
-            msg = f"Proxy script not found at {PROXY_SCRIPT}"
+            msg = f"Proxy script not found at {cfg.proxy_script}"
             logger.error(msg)
             return False, msg
         except Exception as exc:
@@ -230,11 +195,10 @@ class ServerManager:
         healthy = False
         try:
             with httpx.Client(timeout=HEALTH_TIMEOUT) as client:
-                resp = client.get(HEALTH_ENDPOINT)
-                healthy = resp.status_code in (200, 404)  # 404 = server up, no models yet
+                resp = client.get(cfg.health_endpoint)
+                healthy = resp.status_code in (200, 404)
         except Exception:
             healthy = False
-
         with self._lock:
             self._ovms_healthy = healthy
 
@@ -242,17 +206,13 @@ class ServerManager:
         alive = False
         with self._lock:
             proc = self._proxy_proc
-
         if proc and proc.poll() is None:
-            # Also confirm it's accepting connections on its port
             try:
                 with httpx.Client(timeout=2.0) as client:
-                    resp = client.get(f"http://localhost:{PROXY_PORT}/health")
+                    resp = client.get(f"http://localhost:{cfg.proxy_port}/health")
                     alive = resp.status_code < 500
             except Exception:
-                # If the proxy doesn't have a /health endpoint, just check the process
-                alive = True  # process is running even if endpoint doesn't exist
-
+                alive = True
         with self._lock:
             self._proxy_running = alive
 

@@ -16,14 +16,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-logger = logging.getLogger(__name__)
+from app.config import cfg
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
-MODELS_DIR     = Path(r"C:\Users\annguyen209\models")
-CONFIG_PATH    = Path(r"C:\Users\annguyen209\ovms-workspace\config.json")
-GRAPH_PATH     = Path(r"C:\Users\annguyen209\ovms-workspace\graph.pbtxt")
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # graph.pbtxt template  (GPU, matches the spec exactly)
@@ -87,7 +82,7 @@ class ModelInfo:
 
     @property
     def local_path(self) -> Path:
-        return MODELS_DIR / self.repo_folder_name
+        return cfg.models_dir / self.repo_folder_name
 
     @property
     def is_downloaded(self) -> bool:
@@ -154,11 +149,12 @@ def read_active_model_name() -> str:
     or an empty string if the config does not exist / cannot be parsed.
     """
     try:
-        if not CONFIG_PATH.is_file():
+        config_path = cfg.config_json
+        if not config_path.is_file():
             return ""
-        with CONFIG_PATH.open(encoding="utf-8") as fh:
-            cfg = json.load(fh)
-        entries = cfg.get("mediapipe_config_list", [])
+        with config_path.open(encoding="utf-8") as fh:
+            data = json.load(fh)
+        entries = data.get("mediapipe_config_list", [])
         if entries:
             return entries[0].get("name", "")
     except Exception as exc:
@@ -174,14 +170,16 @@ def activate_model(model: ModelInfo) -> tuple[bool, str]:
     if not model.is_downloaded:
         return False, f"Model '{model.display_name}' is not downloaded yet."
 
+    graph_path  = cfg.graph_pbtxt
+    config_path = cfg.config_json
+
     # 1. Write graph.pbtxt
-    # Use forward slashes inside the protobuf text – OVMS handles both on Windows.
     model_path_str = model.local_path.as_posix()
     graph_content = GRAPH_TEMPLATE.format(model_path=model_path_str)
 
     try:
-        GRAPH_PATH.parent.mkdir(parents=True, exist_ok=True)
-        GRAPH_PATH.write_text(graph_content, encoding="utf-8")
+        graph_path.parent.mkdir(parents=True, exist_ok=True)
+        graph_path.write_text(graph_content, encoding="utf-8")
         logger.info("Wrote graph.pbtxt for model %s", model.display_name)
     except Exception as exc:
         msg = f"Failed to write graph.pbtxt: {exc}"
@@ -189,20 +187,20 @@ def activate_model(model: ModelInfo) -> tuple[bool, str]:
         return False, msg
 
     # 2. Write config.json
-    config = {
+    config_data = {
         "model_config_list": [],
         "mediapipe_config_list": [
             {
                 "name": model.model_name_for_config,
-                "graph_path": str(GRAPH_PATH).replace("\\", "\\\\"),
+                "graph_path": str(graph_path).replace("\\", "\\\\"),
             }
         ],
     }
 
     try:
-        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with CONFIG_PATH.open("w", encoding="utf-8") as fh:
-            json.dump(config, fh, indent=2)
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        with config_path.open("w", encoding="utf-8") as fh:
+            json.dump(config_data, fh, indent=2)
         logger.info("Wrote config.json for model %s", model.display_name)
     except Exception as exc:
         msg = f"Failed to write config.json: {exc}"
@@ -280,9 +278,9 @@ def _download_worker(
                 if on_progress:
                     on_progress(model, pct)
 
-        MODELS_DIR.mkdir(parents=True, exist_ok=True)
+        cfg.models_dir.mkdir(parents=True, exist_ok=True)
 
-        local_dir = MODELS_DIR / model.repo_folder_name
+        local_dir = cfg.models_dir / model.repo_folder_name
 
         # Use huggingface_hub >= 0.23 tqdm_class hook for progress
         # For older versions we fall back to polling
