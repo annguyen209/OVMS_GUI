@@ -78,26 +78,26 @@ class StatusCard(tk.Frame):
         kwargs.setdefault("highlightthickness", 1)
         kwargs.setdefault("highlightbackground", _BORDER)
         kwargs.setdefault("highlightcolor", _BORDER)
-        kwargs.setdefault("height", 36)
+        kwargs.setdefault("height", 42)
         super().__init__(master, **kwargs)
         self.pack_propagate(False)
 
-        # Left-edge colored status strip (tk.Frame = perfectly square)
+        # Left-edge colored status strip
         self._status_bar = tk.Frame(self, width=3, bg=_MUTED)
         self._status_bar.pack(side="left", fill="y")
 
         row = tk.Frame(self, bg=_CARD)
-        row.pack(side="left", fill="both", expand=True, padx=(10, 12))
+        row.pack(side="left", fill="both", expand=True, padx=(12, 14))
 
         tk.Label(row, text=f"{title}:",
-                 font=("Segoe UI", 9), fg=_MUTED, bg=_CARD,
+                 font=("Segoe UI", 11), fg=_MUTED, bg=_CARD,
                  anchor="w").pack(side="left")
 
         self._value_lbl = tk.Label(
             row, text="...",
-            font=("Segoe UI", 9, "bold"), fg=_TEXT, bg=_CARD, anchor="w",
+            font=("Segoe UI", 11, "bold"), fg=_TEXT, bg=_CARD, anchor="w",
         )
-        self._value_lbl.pack(side="left", padx=(4, 0))
+        self._value_lbl.pack(side="left", padx=(5, 0))
 
     def set_status(self, text: str, color: str = _MUTED):
         self._status_bar.configure(bg=color)
@@ -180,7 +180,7 @@ class HardwareBar(tk.Frame):
         kwargs.setdefault("highlightthickness", 1)
         kwargs.setdefault("highlightbackground", _BORDER)
         kwargs.setdefault("highlightcolor", _BORDER)
-        kwargs.setdefault("height", 32)
+        kwargs.setdefault("height", 42)
         super().__init__(master, **kwargs)
         self.pack_propagate(False)
 
@@ -189,7 +189,7 @@ class HardwareBar(tk.Frame):
 
         self._placeholder = tk.Label(
             self._inner, text="Detecting hardware...",
-            font=("Segoe UI", 9), fg=_MUTED, bg=_CARD, anchor="w",
+            font=("Segoe UI", 11), fg=_MUTED, bg=_CARD, anchor="w",
         )
         self._placeholder.pack(side="left")
 
@@ -229,11 +229,11 @@ class HardwareBar(tk.Frame):
             label   = _token_labels.get(token, token)
 
             tk.Label(self._inner, text=token,
-                     font=("Segoe UI", 9, "bold"), fg=color, bg=_CARD,
+                     font=("Segoe UI", 11, "bold"), fg=color, bg=_CARD,
                      ).pack(side="left")
             tk.Label(self._inner,
                      text=f"  {label}   {display}",
-                     font=("Segoe UI", 9), fg=_TEXT2, bg=_CARD,
+                     font=("Segoe UI", 11), fg=_TEXT2, bg=_CARD,
                      ).pack(side="left")
 
 
