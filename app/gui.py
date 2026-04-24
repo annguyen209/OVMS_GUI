@@ -697,7 +697,9 @@ class App(ctk.CTk):
         self.minsize(800, 600)
 
         try:
-            self.iconbitmap(default="")
+            from app.icon import ICON_PATH
+            if ICON_PATH.is_file():
+                self.iconbitmap(str(ICON_PATH))
         except Exception:
             pass
 
@@ -819,13 +821,9 @@ class App(ctk.CTk):
 
     def _setup_tray(self):
         try:
-            from PIL import Image, ImageDraw
             import pystray
-
-            # Draw a simple blue square icon
-            img = Image.new("RGB", (64, 64), color=_BANNER)
-            draw = ImageDraw.Draw(img)
-            draw.rectangle([12, 12, 52, 52], fill=_BLUE)
+            from app.icon import get_tray_image
+            img = get_tray_image(64)
 
             menu = pystray.Menu(
                 pystray.MenuItem("Show", self._tray_show, default=True),

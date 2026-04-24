@@ -30,7 +30,14 @@ def _configure_logging():
 def main():
     _configure_logging()
     logger = logging.getLogger(__name__)
-    logger.info("Starting OVMS GUI Manager…")
+    logger.info("Starting OVMS GUI Manager...")
+
+    # Build icon assets before opening the window
+    try:
+        from app.icon import build_icon
+        build_icon()
+    except Exception:
+        pass
 
     try:
         from app.gui import App
