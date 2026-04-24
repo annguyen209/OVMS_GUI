@@ -21,6 +21,7 @@ from app.config import cfg
 from app.chat import ChatTab
 from app.guide import GuideTab
 from app.setup_tab import SetupTab
+from app.about import AboutTab
 from app import installer
 
 logger = logging.getLogger(__name__)
@@ -764,6 +765,7 @@ class App(ctk.CTk):
         self._tabs.add("Models")
         self._tabs.add("Chat")
         self._tabs.add("Guide")
+        self._tabs.add("About")
         self._tabs.add("Settings")
 
         self._setup_tab = SetupTab(
@@ -783,6 +785,9 @@ class App(ctk.CTk):
 
         self._guide_tab = GuideTab(self._tabs.tab("Guide"))
         self._guide_tab.pack(fill="both", expand=True)
+
+        self._about_tab = AboutTab(self._tabs.tab("About"))
+        self._about_tab.pack(fill="both", expand=True)
 
         self._settings_tab = SettingsTab(self._tabs.tab("Settings"))
         self._settings_tab.pack(fill="both", expand=True)
