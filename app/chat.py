@@ -72,7 +72,7 @@ def stream_chat(
                 msgs = list(messages)
 
                 if use_tools:
-                    # Agentic loop — run up to 5 rounds of tool calls
+                    # Agentic loop — up to 5 rounds
                     for _ in range(5):
                         payload = {
                             "model": model,
@@ -82,42 +82,52 @@ def stream_chat(
                             "tool_choice": "auto",
                             "stream": False,
                         }
-                        r = client.post(_BASE(), json=payload)
+                        r = client.post(_BASE(), json=payload, timeout=120)
                         if r.status_code != 200:
-                            on_error(f"HTTP {r.status_code}: {r.text[:200]}")
+                            on_error(f"HTTP {r.status_code}: {r.text[:300]}")
                             return
 
-                        choice = r.json()["choices"][0]
-                        msg    = choice["message"]
+                        data     = r.json()
+                        choice   = data["choices"][0]
+                        msg      = choice["message"]
+                        finish   = choice.get("finish_reason", "")
 
-                        tool_calls = msg.get("tool_calls") or []
-                        if not tool_calls:
-                            # No more tool calls — stream the final content
+                        # Collect tool calls — may be in message or choice
+                        tool_calls = (msg.get("tool_calls")
+                                      or choice.get("tool_calls")
+                                      or [])
+
+                        logger.debug("Tool round finish=%s tool_calls=%d",
+                                     finish, len(tool_calls))
+
+                        if not tool_calls or finish == "stop":
                             content = msg.get("content") or ""
                             if content:
                                 on_chunk(content)
                             on_done()
                             return
 
-                        # Append assistant message with tool_calls
-                        msgs.append(msg)
+                        # Append assistant turn with tool_calls
+                        msgs.append({
+                            "role": "assistant",
+                            "content": msg.get("content") or "",
+                            "tool_calls": tool_calls,
+                        })
 
-                        # Execute each tool and append results
                         for tc in tool_calls:
-                            name = tc["function"]["name"]
-                            args = tc["function"].get("arguments", "{}")
+                            fn   = tc.get("function", {})
+                            name = fn.get("name", "unknown")
+                            args = fn.get("arguments", "{}")
                             result = execute_tool(name, args)
-
                             if on_tool_call:
                                 on_tool_call(name, result)
-
                             msgs.append({
-                                "role": "tool",
-                                "tool_call_id": tc["id"],
-                                "content": result,
+                                "role":        "tool",
+                                "tool_call_id": tc.get("id", "0"),
+                                "content":      result,
                             })
 
-                    on_error("Too many tool call rounds — stopping.")
+                    on_error("Tool call limit reached (5 rounds).")
                     return
 
                 # Plain streaming (no tools)
@@ -161,26 +171,54 @@ def stream_chat(
 # ---------------------------------------------------------------------------
 
 class MessageBubble(ctk.CTkFrame):
-    """A single chat message displayed as a coloured card."""
+    """A single chat message card with Copy and optional Retry buttons."""
 
-    def __init__(self, master, role: str, content: str = "", **kwargs):
-        bg = {"user": _USER_BG, "assistant": _ASSIST_BG, "system": _SYSTEM_BG}.get(role, _ASSIST_BG)
-        border_colors = {"user": "#bfdbfe", "assistant": "#bbf7d0", "system": _BORDER}
-        kwargs.setdefault("fg_color", bg)
+    _ROLE_COLORS  = {"user": _BLUE,  "assistant": _GREEN, "system": _TEXT2}
+    _BORDER_COLORS = {"user": "#bfdbfe", "assistant": "#bbf7d0", "system": _BORDER}
+    _BG_COLORS     = {"user": _USER_BG,  "assistant": _ASSIST_BG, "system": _SYSTEM_BG}
+
+    def __init__(self, master, role: str, content: str = "",
+                 on_retry=None, **kwargs):
+        kwargs.setdefault("fg_color",      self._BG_COLORS.get(role, _ASSIST_BG))
         kwargs.setdefault("corner_radius", 8)
-        kwargs.setdefault("border_width", 1)
-        kwargs.setdefault("border_color", border_colors.get(role, _BORDER))
+        kwargs.setdefault("border_width",  1)
+        kwargs.setdefault("border_color",  self._BORDER_COLORS.get(role, _BORDER))
         super().__init__(master, **kwargs)
+        self._role     = role
+        self._on_retry = on_retry
 
-        role_colors = {"user": _BLUE, "assistant": _GREEN, "system": _TEXT2}
-        ctk.CTkLabel(
-            self,
-            text=role.capitalize(),
-            font=ctk.CTkFont(size=10, weight="bold"),
-            text_color=role_colors.get(role, _MUTED),
-            anchor="w",
-        ).pack(anchor="w", padx=14, pady=(10, 2))
+        # Header: role label + action buttons
+        hdr = ctk.CTkFrame(self, fg_color="transparent")
+        hdr.pack(fill="x", padx=14, pady=(8, 2))
 
+        ctk.CTkLabel(hdr, text=role.capitalize(),
+                     font=ctk.CTkFont(size=10, weight="bold"),
+                     text_color=self._ROLE_COLORS.get(role, _MUTED),
+                     anchor="w").pack(side="left")
+
+        # Retry button (assistant only)
+        if role == "assistant" and on_retry:
+            ctk.CTkButton(hdr, text="Retry", width=48, height=20,
+                          font=ctk.CTkFont(size=10),
+                          fg_color=_CARD2, hover_color=_BORDER,
+                          border_width=1, border_color=_BORDER2,
+                          text_color=_TEXT2,
+                          command=on_retry,
+                          ).pack(side="right", padx=(4, 0))
+
+        # Copy button (all roles)
+        self._copy_lbl = ctk.CTkLabel(hdr, text="", font=ctk.CTkFont(size=10),
+                                       text_color=_GREEN)
+        self._copy_lbl.pack(side="right", padx=(0, 4))
+        ctk.CTkButton(hdr, text="Copy", width=48, height=20,
+                      font=ctk.CTkFont(size=10),
+                      fg_color=_CARD2, hover_color=_BORDER,
+                      border_width=1, border_color=_BORDER2,
+                      text_color=_TEXT2,
+                      command=self._copy,
+                      ).pack(side="right", padx=(0, 2))
+
+        # Content
         self._text_var = tk.StringVar(value=content)
         self._label = ctk.CTkLabel(
             self,
@@ -191,13 +229,22 @@ class MessageBubble(ctk.CTkFrame):
             justify="left",
             wraplength=700,
         )
-        self._label.pack(anchor="w", padx=14, pady=(0, 12), fill="x")
+        self._label.pack(anchor="w", padx=14, pady=(0, 10), fill="x")
+
+    def _copy(self):
+        self.clipboard_clear()
+        self.clipboard_append(self._text_var.get())
+        self._copy_lbl.configure(text="Copied")
+        self.after(2000, lambda: self._copy_lbl.configure(text=""))
 
     def append(self, text: str):
         self._text_var.set(self._text_var.get() + text)
 
+    def get_text(self) -> str:
+        return self._text_var.get()
+
     def set_wrap(self, width: int):
-        self._label.configure(wraplength=max(200, width - 80))
+        self._label.configure(wraplength=max(200, width - 100))
 
 
 # ---------------------------------------------------------------------------
@@ -393,7 +440,8 @@ class ChatTab(ctk.CTkFrame):
         use_tools = self._tools_var.get()
 
         # Placeholder bubble for the response
-        self._active_bubble = self._add_bubble("assistant", "")
+        self._active_bubble = self._add_bubble("assistant", "",
+                                               on_retry=self._retry)
         self._streaming = True
         self._send_btn.configure(state="disabled", text="...")
         status_text = "Thinking (web tools on)..." if use_tools else "Generating..."
@@ -410,21 +458,58 @@ class ChatTab(ctk.CTkFrame):
         )
 
     def _scroll_to_bottom(self):
-        try:
-            self._scroll._parent_canvas.yview_moveto(1.0)
-        except Exception:
+        def _do():
             try:
                 self._scroll.update_idletasks()
                 self._scroll._parent_canvas.yview_moveto(1.0)
             except Exception:
                 pass
+        self.after(30, _do)
 
-    def _add_bubble(self, role: str, content: str) -> MessageBubble:
-        bubble = MessageBubble(self._scroll, role=role, content=content)
+    def _add_bubble(self, role: str, content: str,
+                    on_retry=None) -> MessageBubble:
+        bubble = MessageBubble(self._scroll, role=role, content=content,
+                               on_retry=on_retry)
         bubble.pack(fill="x", padx=10, pady=4)
         self._bubbles.append(bubble)
         self._scroll_to_bottom()
         return bubble
+
+    def _retry(self):
+        """Re-run the last user message."""
+        if self._streaming:
+            return
+        # Find last user message
+        last_user = None
+        for msg in reversed(self._messages):
+            if msg["role"] == "user":
+                last_user = msg["content"]
+                break
+        if not last_user:
+            return
+        # Remove the last assistant response from history
+        if self._messages and self._messages[-1]["role"] == "assistant":
+            self._messages.pop()
+        # Remove the last assistant bubble from UI
+        if self._bubbles and self._bubbles[-1]._role == "assistant":
+            self._bubbles[-1].destroy()
+            self._bubbles.pop()
+
+        self._active_bubble = self._add_bubble(
+            "assistant", "", on_retry=self._retry)
+        self._streaming = True
+        self._send_btn.configure(state="disabled", text="...")
+        self._status.configure(text="Retrying...", text_color=_AMBER)
+
+        stream_chat(
+            messages=self._messages,
+            model=self._current_model(),
+            on_chunk=self._on_chunk,
+            on_done=self._on_done,
+            on_error=self._on_error,
+            use_tools=self._tools_var.get(),
+            on_tool_call=self._on_tool_call,
+        )
 
     # ------------------------------------------------------------------
     # Streaming callbacks (called from background thread - use .after)
@@ -447,7 +532,7 @@ class ChatTab(ctk.CTkFrame):
     def _apply_chunk(self, text: str):
         if self._active_bubble:
             self._active_bubble.append(text)
-            self._scroll._parent_canvas.yview_moveto(1.0)
+            self._scroll_to_bottom()
 
     def _on_done(self):
         self.after(0, self._finish)
@@ -457,10 +542,10 @@ class ChatTab(ctk.CTkFrame):
         self._send_btn.configure(state="normal", text="Send")
         self._status.configure(text="", text_color=_MUTED)
 
-        # Record the full assistant response in history
         if self._active_bubble:
-            content = self._active_bubble._text_var.get()
+            content = self._active_bubble.get_text()
             self._messages.append({"role": "assistant", "content": content})
+            self._scroll_to_bottom()
         self._active_bubble = None
 
     def _on_error(self, msg: str):
