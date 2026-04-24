@@ -662,7 +662,7 @@ class ModelsTab(ctk.CTkFrame):
             fg_color="transparent",
             label_text="",
         )
-        self._scroll.pack(fill="both", expand=True, padx=16, pady=(0, 16))
+        self._scroll.pack(fill="both", expand=True, padx=16, pady=(0, 6))
 
         # Create one ModelRow per curated model
         for model in CURATED_MODELS:
@@ -674,6 +674,98 @@ class ModelsTab(ctk.CTkFrame):
             )
             row.pack(fill="x", pady=4)
             self._rows.append(row)
+
+        # Custom model input panel
+        self._build_custom_panel()
+
+    def _build_custom_panel(self):
+        panel = ctk.CTkFrame(self, fg_color=_CARD2, corner_radius=6,
+                             border_width=1, border_color=_BORDER)
+        panel.pack(fill="x", padx=16, pady=(0, 12))
+
+        # Header
+        hdr = ctk.CTkFrame(panel, fg_color="transparent")
+        hdr.pack(fill="x", padx=14, pady=(10, 6))
+        ctk.CTkLabel(hdr, text="Custom Model",
+                     font=ctk.CTkFont(size=12, weight="bold"),
+                     text_color=_TEXT2).pack(side="left")
+        ctk.CTkLabel(hdr,
+                     text="HuggingFace repo ID or local folder path. "
+                          "Must be an OpenVINO IR model (contains openvino_model.xml).",
+                     font=ctk.CTkFont(size=10), text_color=_MUTED).pack(side="left", padx=(10, 0))
+
+        # Input row
+        row = ctk.CTkFrame(panel, fg_color="transparent")
+        row.pack(fill="x", padx=14, pady=(0, 10))
+
+        ctk.CTkLabel(row, text="Repo / Path:",
+                     font=ctk.CTkFont(size=11), text_color=_MUTED,
+                     width=90, anchor="w").pack(side="left")
+
+        self._custom_repo = ctk.CTkEntry(
+            row, font=ctk.CTkFont(family="Consolas", size=12),
+            placeholder_text="e.g.  OpenVINO/Phi-4-mini-instruct-int4-ov  or  C:\\models\\my-model",
+            height=30,
+        )
+        self._custom_repo.pack(side="left", fill="x", expand=True, padx=(6, 8))
+
+        ctk.CTkLabel(row, text="Name:",
+                     font=ctk.CTkFont(size=11), text_color=_MUTED,
+                     width=48, anchor="w").pack(side="left")
+
+        self._custom_name = ctk.CTkEntry(
+            row, font=ctk.CTkFont(size=12),
+            placeholder_text="Display name",
+            width=160, height=30,
+        )
+        self._custom_name.pack(side="left", padx=(4, 8))
+
+        ctk.CTkButton(
+            row, text="Add", width=70, height=30,
+            font=ctk.CTkFont(size=12),
+            fg_color=_BLUE, hover_color=_BLUE_H,
+            command=self._add_custom_model,
+        ).pack(side="left")
+
+    def _add_custom_model(self):
+        from pathlib import Path as _Path
+        repo = self._custom_repo.get().strip()
+        name = self._custom_name.get().strip()
+
+        if not repo:
+            self._notify("Enter a HuggingFace repo ID or local path.", _RED)
+            return
+
+        # Determine if local path or HF repo
+        local = _Path(repo)
+        if local.is_dir():
+            hf_id = repo          # treat as local — no HF download needed
+            size  = "local"
+        else:
+            hf_id = repo
+            size  = "?"
+
+        display = name or repo.split("/")[-1]
+
+        model = ModelInfo(
+            hf_repo_id=repo,
+            display_name=display,
+            size_label=size,
+            notes="Custom model",
+        )
+
+        row = ModelRow(
+            self._scroll,
+            model=model,
+            server=self._server,
+            notify_cb=self._notify,
+        )
+        row.pack(fill="x", pady=4)
+        self._rows.append(row)
+
+        self._custom_repo.delete(0, "end")
+        self._custom_name.delete(0, "end")
+        self._notify(f"Added: {display}", _GREEN)
 
     def _notify(self, message: str, color: str = _MUTED):
         self._notif_bar.configure(text=message, text_color=color)
