@@ -153,8 +153,20 @@ class ServerManager:
         with self._lock:
             if self._proxy_proc and self._proxy_proc.poll() is None:
                 return True, "Proxy already running."
+            # Already healthy (started externally)
+            if self._proxy_running:
+                return True, "Proxy already running (external process)."
         try:
-            log_fh = open(cfg.proxy_log, "a", encoding="utf-8")
+            # Use a GUI-specific log to avoid colliding with an external proxy
+            gui_proxy_log = cfg.proxy_log.replace(
+                "ovms-proxy.log", "ovms-proxy-gui.log"
+            ) if "ovms-proxy.log" in cfg.proxy_log else cfg.proxy_log + ".gui"
+            try:
+                log_fh = open(gui_proxy_log, "a", encoding="utf-8")
+            except PermissionError:
+                import tempfile
+                log_fh = open(tempfile.mktemp(suffix="-proxy.log"), "w", encoding="utf-8")
+
             proc = subprocess.Popen(
                 [cfg.python_exe, cfg.proxy_script],
                 stdout=log_fh, stderr=log_fh,
