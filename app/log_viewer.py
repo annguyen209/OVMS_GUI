@@ -74,7 +74,7 @@ class LogViewerWidget(ctk.CTkFrame):
         # Text box
         self._textbox = ctk.CTkTextbox(
             self,
-            wrap="none",
+            wrap="word",
             font=ctk.CTkFont(family="Consolas", size=11),
             state="disabled",
             fg_color="#1a1a2e",
