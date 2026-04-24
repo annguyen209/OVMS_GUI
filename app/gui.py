@@ -70,40 +70,40 @@ def _section_header(parent, text: str):
 # Status card  (status bar rect + title + value)
 # ---------------------------------------------------------------------------
 
-class StatusCard(ctk.CTkFrame):
+class StatusCard(tk.Frame):
+    """Sharp-cornered status card using tk.Frame for pixel-perfect rendering."""
+
     def __init__(self, master, title: str, **kwargs):
-        kwargs.setdefault("corner_radius", 0)
-        kwargs.setdefault("fg_color", _CARD)
-        kwargs.setdefault("border_width", 1)
-        kwargs.setdefault("border_color", _BORDER)
+        kwargs.setdefault("bg", _CARD)
+        kwargs.setdefault("highlightthickness", 1)
+        kwargs.setdefault("highlightbackground", _BORDER)
+        kwargs.setdefault("highlightcolor", _BORDER)
         kwargs.setdefault("height", 36)
         super().__init__(master, **kwargs)
         self.pack_propagate(False)
 
-        # Left-edge colored status bar
-        self._status_bar = ctk.CTkFrame(self, width=3, fg_color=_MUTED,
-                                        corner_radius=0)
+        # Left-edge colored status strip (tk.Frame = perfectly square)
+        self._status_bar = tk.Frame(self, width=3, bg=_MUTED)
         self._status_bar.pack(side="left", fill="y")
 
-        row = ctk.CTkFrame(self, fg_color="transparent")
+        row = tk.Frame(self, bg=_CARD)
         row.pack(side="left", fill="both", expand=True, padx=(10, 12))
 
-        ctk.CTkLabel(row, text=f"{title}:",
-                     font=ctk.CTkFont(size=11),
-                     text_color=_MUTED, anchor="w").pack(side="left")
+        tk.Label(row, text=f"{title}:",
+                 font=("Segoe UI", 9), fg=_MUTED, bg=_CARD,
+                 anchor="w").pack(side="left")
 
-        self._value_lbl = ctk.CTkLabel(
+        self._value_lbl = tk.Label(
             row, text="...",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            text_color=_TEXT, anchor="w",
+            font=("Segoe UI", 9, "bold"), fg=_TEXT, bg=_CARD, anchor="w",
         )
         self._value_lbl.pack(side="left", padx=(4, 0))
 
     def set_status(self, text: str, color: str = _MUTED):
-        self._status_bar.configure(fg_color=color)
+        self._status_bar.configure(bg=color)
         self._value_lbl.configure(
             text=text,
-            text_color=color if color != _MUTED else _TEXT,
+            fg=color if color != _MUTED else _TEXT,
         )
 
 
@@ -172,26 +172,26 @@ class EndpointPanel(ctk.CTkFrame):
 # Hardware info bar
 # ---------------------------------------------------------------------------
 
-class HardwareBar(ctk.CTkFrame):
+class HardwareBar(tk.Frame):
     """Compact one-line hardware summary: CPU / GPU / NPU device names."""
 
     def __init__(self, master, **kwargs):
-        kwargs.setdefault("fg_color", _CARD)
-        kwargs.setdefault("corner_radius", 0)
-        kwargs.setdefault("border_width", 1)
-        kwargs.setdefault("border_color", _BORDER)
+        kwargs.setdefault("bg", _CARD)
+        kwargs.setdefault("highlightthickness", 1)
+        kwargs.setdefault("highlightbackground", _BORDER)
+        kwargs.setdefault("highlightcolor", _BORDER)
         kwargs.setdefault("height", 32)
         super().__init__(master, **kwargs)
         self.pack_propagate(False)
 
-        self._inner = ctk.CTkFrame(self, fg_color="transparent")
+        self._inner = tk.Frame(self, bg=_CARD)
         self._inner.pack(fill="both", expand=True, padx=12, pady=0)
 
-        self._placeholder = ctk.CTkLabel(
+        self._placeholder = tk.Label(
             self._inner, text="Detecting hardware...",
-            font=ctk.CTkFont(size=11), text_color=_MUTED, anchor="w",
+            font=("Segoe UI", 9), fg=_MUTED, bg=_CARD, anchor="w",
         )
-        self._placeholder.pack(side="left", pady=0)
+        self._placeholder.pack(side="left")
 
         # Detect after mainloop starts — log parse is instant
         self.after(200, lambda: threading.Thread(
@@ -221,21 +221,20 @@ class HardwareBar(ctk.CTkFrame):
 
         for i, (token, name, desc) in enumerate(devices):
             if i > 0:
-                ctk.CTkFrame(self._inner, width=1, fg_color=_BORDER
-                             ).pack(side="left", fill="y", padx=14, pady=2)
+                tk.Frame(self._inner, width=1, bg=_BORDER
+                         ).pack(side="left", fill="y", padx=14, pady=4)
 
             color   = _token_colors.get(token, _MUTED)
             display = name if name != token else _token_subtitles.get(token, token)
             label   = _token_labels.get(token, token)
 
-            # Everything on one line: [TOKEN]  label  display
-            ctk.CTkLabel(self._inner, text=token,
-                         font=ctk.CTkFont(size=11, weight="bold"),
-                         text_color=color).pack(side="left")
-            ctk.CTkLabel(self._inner,
-                         text=f"  {label}   {display}",
-                         font=ctk.CTkFont(size=11),
-                         text_color=_TEXT2).pack(side="left")
+            tk.Label(self._inner, text=token,
+                     font=("Segoe UI", 9, "bold"), fg=color, bg=_CARD,
+                     ).pack(side="left")
+            tk.Label(self._inner,
+                     text=f"  {label}   {display}",
+                     font=("Segoe UI", 9), fg=_TEXT2, bg=_CARD,
+                     ).pack(side="left")
 
 
 # ---------------------------------------------------------------------------
