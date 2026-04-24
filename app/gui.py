@@ -273,8 +273,10 @@ class DashboardTab(ctk.CTkFrame):
         self._card_model.grid(row=0, column=2, padx=(5, 0), pady=0, sticky="nsew")
 
         # ---- Hardware info ----
+        # Left padx = 19 (16 base + 3 for the status-card left stripe width)
+        # so hardware text aligns with status card text
         _section_header(self, "HARDWARE")
-        HardwareBar(self).pack(fill="x", padx=16, pady=(0, 4))
+        HardwareBar(self).pack(fill="x", padx=(19, 16), pady=(0, 4))
 
         # ---- Endpoint panel ----
         _section_header(self, "ENDPOINT")
