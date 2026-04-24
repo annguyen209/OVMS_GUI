@@ -69,7 +69,8 @@ class ModelInfo:
     hf_repo_id:   str          # e.g. "OpenVINO/Qwen2.5-Coder-7B-Instruct-int4-ov"
     display_name: str          # shown in the UI
     size_label:   str          # human-readable size string
-    notes:        str = ""
+    notes:        str  = ""
+    broken:       bool = False  # known incompatibility with current OV version
 
     # Runtime state (not persisted)
     download_progress: float = field(default=0.0, compare=False)   # 0.0 – 100.0
@@ -143,37 +144,39 @@ CURATED_MODELS: list[ModelInfo] = [
         hf_repo_id="OpenVINO/Qwen2.5-Coder-7B-Instruct-int4-ov",
         display_name="Qwen2.5-Coder-7B",
         size_label="~4 GB",
-        notes="Best coding, currently active",
+        notes="Coding specialist. Confirmed working.",
     ),
     ModelInfo(
         hf_repo_id="OpenVINO/Qwen3-8B-int4-ov",
         display_name="Qwen3-8B",
         size_label="~4 GB",
-        notes="General, has detokenizer issue",
+        notes="Detokenizer incompatible with OpenVINO 2026.1 - produces garbled output.",
+        broken=True,
     ),
     ModelInfo(
         hf_repo_id="OpenVINO/Qwen3-8B-int4-cw-ov",
         display_name="Qwen3-8B (NPU)",
         size_label="~4 GB",
-        notes="NPU optimized",
+        notes="Detokenizer incompatible with OpenVINO 2026.1 - produces garbled output.",
+        broken=True,
     ),
     ModelInfo(
         hf_repo_id="OpenVINO/DeepSeek-R1-Distill-Qwen-7B-int4-cw-ov",
         display_name="DeepSeek-R1-7B",
         size_label="~4 GB",
-        notes="Reasoning",
+        notes="Reasoning model. Confirmed working.",
     ),
     ModelInfo(
         hf_repo_id="OpenVINO/DeepSeek-R1-Distill-Qwen-1.5B-int4-cw-ov",
         display_name="DeepSeek-R1-1.5B",
         size_label="~1 GB",
-        notes="Fast, lightweight",
+        notes="Lightweight reasoning. Confirmed working.",
     ),
     ModelInfo(
         hf_repo_id="OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov",
         display_name="Phi-3.5-mini",
         size_label="~2 GB",
-        notes="Efficient",
+        notes="Efficient general model.",
     ),
 ]
 

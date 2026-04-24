@@ -416,20 +416,29 @@ class ModelRow(ctk.CTkFrame):
         info_frame = ctk.CTkFrame(self, fg_color="transparent")
         info_frame.grid(row=0, column=0, sticky="nsew", padx=(14, 8), pady=10)
 
+        name_row = ctk.CTkFrame(info_frame, fg_color="transparent")
+        name_row.pack(anchor="w")
         ctk.CTkLabel(
-            info_frame,
+            name_row,
             text=self._model.display_name,
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color=_TEXT,
             anchor="w",
-        ).pack(anchor="w")
+        ).pack(side="left")
+        if self._model.broken:
+            ctk.CTkLabel(
+                name_row, text="  Incompatible",
+                font=ctk.CTkFont(size=10, weight="bold"),
+                fg_color="#fff1f0", text_color=_RED,
+                corner_radius=4, padx=5, pady=1,
+            ).pack(side="left", padx=(6, 0))
 
         if self._model.notes:
             ctk.CTkLabel(
                 info_frame,
                 text=self._model.notes,
                 font=ctk.CTkFont(size=11),
-                text_color=_MUTED,
+                text_color=_RED if self._model.broken else _MUTED,
                 anchor="w",
             ).pack(anchor="w")
 
@@ -471,6 +480,19 @@ class ModelRow(ctk.CTkFrame):
         model = self._model
         active = read_active_model_name()
         is_active = active and active == model.model_name_for_config
+
+        if model.broken:
+            self._status_lbl.configure(text="Incompatible", text_color=_RED)
+            self._progress_bar.grid_remove()
+            self._btn.configure(
+                text="Incompatible",
+                state="disabled",
+                fg_color=_BORDER,
+                hover_color=_BORDER,
+                border_width=0,
+                text_color=_MUTED,
+            )
+            return
 
         if model.is_downloading:
             pct = model.download_progress
