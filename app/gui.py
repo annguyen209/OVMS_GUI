@@ -89,13 +89,15 @@ class StatusCard(tk.Frame):
         row = tk.Frame(self, bg=_CARD)
         row.pack(side="left", fill="both", expand=True, padx=(12, 14))
 
-        tk.Label(row, text=f"{title}:",
-                 font=("Segoe UI", 11), fg=_MUTED, bg=_CARD,
-                 anchor="w").pack(side="left")
+        ctk.CTkLabel(row, text=f"{title}:",
+                     font=ctk.CTkFont(size=12),
+                     text_color=_MUTED, fg_color=_CARD,
+                     anchor="w").pack(side="left")
 
-        self._value_lbl = tk.Label(
+        self._value_lbl = ctk.CTkLabel(
             row, text="...",
-            font=("Segoe UI", 11, "bold"), fg=_TEXT, bg=_CARD, anchor="w",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=_TEXT, fg_color=_CARD, anchor="w",
         )
         self._value_lbl.pack(side="left", padx=(5, 0))
 
@@ -103,7 +105,7 @@ class StatusCard(tk.Frame):
         self._status_bar.configure(bg=color)
         self._value_lbl.configure(
             text=text,
-            fg=color if color != _MUTED else _TEXT,
+            text_color=color if color != _MUTED else _TEXT,
         )
 
 
@@ -187,9 +189,10 @@ class HardwareBar(tk.Frame):
         self._inner = tk.Frame(self, bg=_CARD)
         self._inner.pack(fill="both", expand=True, padx=12, pady=0)
 
-        self._placeholder = tk.Label(
+        self._placeholder = ctk.CTkLabel(
             self._inner, text="Detecting hardware...",
-            font=("Segoe UI", 11), fg=_MUTED, bg=_CARD, anchor="w",
+            font=ctk.CTkFont(size=12),
+            text_color=_MUTED, fg_color=_CARD, anchor="w",
         )
         self._placeholder.pack(side="left")
 
@@ -228,13 +231,15 @@ class HardwareBar(tk.Frame):
             display = name if name != token else _token_subtitles.get(token, token)
             label   = _token_labels.get(token, token)
 
-            tk.Label(self._inner, text=token,
-                     font=("Segoe UI", 11, "bold"), fg=color, bg=_CARD,
-                     ).pack(side="left")
-            tk.Label(self._inner,
-                     text=f"  {label}   {display}",
-                     font=("Segoe UI", 11), fg=_TEXT2, bg=_CARD,
-                     ).pack(side="left")
+            ctk.CTkLabel(self._inner, text=token,
+                         font=ctk.CTkFont(size=12, weight="bold"),
+                         text_color=color, fg_color=_CARD,
+                         ).pack(side="left")
+            ctk.CTkLabel(self._inner,
+                         text=f"  {label}   {display}",
+                         font=ctk.CTkFont(size=12),
+                         text_color=_TEXT2, fg_color=_CARD,
+                         ).pack(side="left")
 
 
 # ---------------------------------------------------------------------------
