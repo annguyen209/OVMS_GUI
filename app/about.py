@@ -6,7 +6,6 @@ Detects and shows available hardware (CPU / GPU / NPU).
 """
 
 import re
-import threading
 import tkinter as tk
 import customtkinter as ctk
 from pathlib import Path
@@ -117,8 +116,6 @@ class AboutTab(ctk.CTkFrame):
         kw.setdefault("fg_color", _BG)
         super().__init__(master, **kw)
         self._build_ui()
-        # Delay until mainloop is running
-        self.after(700, self._start_detection)
 
     def _build_ui(self):
         scroll = ctk.CTkScrollableFrame(self, fg_color=_BG, corner_radius=0)
@@ -130,7 +127,6 @@ class AboutTab(ctk.CTkFrame):
         self._build_hero(inner)
         self._build_openvino(inner)
         self._build_ovms(inner)
-        self._build_hardware(inner)
         self._build_app_info(inner)
 
     # Hero
@@ -242,90 +238,7 @@ class AboutTab(ctk.CTkFrame):
 
         ctk.CTkFrame(card, fg_color="transparent", height=8).pack()
 
-    # Hardware
-
-    def _build_hardware(self, parent):
-        card = _Card(parent)
-        card.pack(fill="x", pady=(0, 12))
-
-        hdr = ctk.CTkFrame(card, fg_color="transparent")
-        hdr.pack(fill="x", padx=18, pady=(16, 8))
-        ctk.CTkLabel(hdr, text="Detected Hardware",
-                     font=ctk.CTkFont(size=14, weight="bold"),
-                     text_color=_TEXT).pack(side="left")
-        self._hw_spinner = ctk.CTkLabel(hdr, text="detecting...",
-                                        font=ctk.CTkFont(size=11),
-                                        text_color=_MUTED)
-        self._hw_spinner.pack(side="left", padx=10)
-        ctk.CTkButton(hdr, text="Refresh", width=80, height=26,
-                      font=ctk.CTkFont(size=11),
-                      fg_color=_CARD2, hover_color=_BORDER,
-                      border_width=1, border_color=_BORDER2,
-                      text_color=_TEXT2,
-                      command=self._start_detection,
-                      ).pack(side="right")
-
-        self._hw_frame = ctk.CTkFrame(card, fg_color="transparent")
-        self._hw_frame.pack(fill="x", padx=16, pady=(0, 14))
-
-    def _start_detection(self):
-        # Clear previous results
-        for w in self._hw_frame.winfo_children():
-            w.destroy()
-        self._hw_spinner.configure(text="detecting...")
-        threading.Thread(target=self._load_devices, daemon=True).start()
-
-    def _load_devices(self):
-        devices = _detect_devices()
-        try:
-            self.after(0, lambda: self._render_devices(devices))
-        except RuntimeError:
-            pass
-
-    def _render_devices(self, devices):
-        self._hw_spinner.configure(text="")
-        token_labels = {"CPU": "CPU", "GPU": "GPU", "NPU": "NPU"}
-        descs = {
-            "CPU": "General-purpose inference - always available, any model",
-            "GPU": "Arc iGPU - best throughput, shared system RAM as VRAM",
-            "NPU": "Intel AI Boost - lowest power, ideal for always-on tasks",
-        }
-
-        for token, name, _ in devices:
-            label = token_labels.get(token, token)
-            desc  = descs.get(token, "")
-
-            row = ctk.CTkFrame(self._hw_frame, fg_color=_CARD2,
-                               corner_radius=8, border_width=1,
-                               border_color=_BORDER)
-            row.pack(fill="x", pady=3)
-
-            left = ctk.CTkFrame(row, fg_color="transparent")
-            left.pack(side="left", fill="x", expand=True,
-                      padx=14, pady=10)
-
-            title = ctk.CTkFrame(left, fg_color="transparent")
-            title.pack(anchor="w")
-            ctk.CTkLabel(title, text=label,
-                         font=ctk.CTkFont(size=13, weight="bold"),
-                         text_color=_BLUE).pack(side="left")
-
-            ctk.CTkLabel(left, text=name,
-                         font=ctk.CTkFont(family="Consolas", size=11),
-                         text_color=_TEXT2, anchor="w").pack(anchor="w")
-            if desc:
-                ctk.CTkLabel(left, text=desc,
-                             font=ctk.CTkFont(size=11),
-                             text_color=_MUTED, anchor="w").pack(anchor="w")
-
-            # Device badge (CTkLabel does not support border_width)
-            badge = ctk.CTkFrame(row, fg_color=_CARD2, corner_radius=6,
-                                 border_width=1, border_color=_BORDER2)
-            badge.pack(side="right", padx=14, pady=10)
-            ctk.CTkLabel(badge, text=f'device="{token}"',
-                         font=ctk.CTkFont(family="Consolas", size=11),
-                         fg_color="transparent", text_color=_BLUE,
-                         ).pack(padx=8, pady=4)
+    # Hardware note (detail moved to Dashboard)
 
     # App info
 

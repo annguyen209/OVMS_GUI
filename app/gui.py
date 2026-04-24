@@ -21,7 +21,7 @@ from app.config import cfg
 from app.chat import ChatTab
 from app.guide import GuideTab
 from app.setup_tab import SetupTab
-from app.about import AboutTab
+from app.about import AboutTab, _detect_devices
 from app import installer
 
 logger = logging.getLogger(__name__)
@@ -167,6 +167,62 @@ class EndpointPanel(ctk.CTkFrame):
 
 
 # ---------------------------------------------------------------------------
+# Hardware info bar
+# ---------------------------------------------------------------------------
+
+class HardwareBar(ctk.CTkFrame):
+    """Compact one-line hardware summary: CPU / GPU / NPU device names."""
+
+    def __init__(self, master, **kwargs):
+        kwargs.setdefault("fg_color", _CARD)
+        kwargs.setdefault("corner_radius", 8)
+        kwargs.setdefault("border_width", 1)
+        kwargs.setdefault("border_color", _BORDER)
+        super().__init__(master, **kwargs)
+
+        self._inner = ctk.CTkFrame(self, fg_color="transparent")
+        self._inner.pack(fill="x", padx=14, pady=10)
+
+        self._placeholder = ctk.CTkLabel(
+            self._inner, text="Detecting hardware...",
+            font=ctk.CTkFont(size=11), text_color=_MUTED, anchor="w",
+        )
+        self._placeholder.pack(side="left")
+
+        # Detect in background so the dashboard opens instantly
+        threading.Thread(target=self._detect, daemon=True).start()
+
+    def _detect(self):
+        devices = _detect_devices()
+        try:
+            self.after(0, lambda: self._render(devices))
+        except RuntimeError:
+            pass
+
+    def _render(self, devices):
+        self._placeholder.destroy()
+
+        _token_colors = {"CPU": _BLUE, "GPU": _GREEN, "NPU": _AMBER}
+
+        for i, (token, name, _) in enumerate(devices):
+            if i > 0:
+                ctk.CTkFrame(self._inner, width=1, fg_color=_BORDER
+                             ).pack(side="left", fill="y", padx=12, pady=4)
+
+            col = ctk.CTkFrame(self._inner, fg_color="transparent")
+            col.pack(side="left")
+
+            ctk.CTkLabel(col, text=token,
+                         font=ctk.CTkFont(size=10, weight="bold"),
+                         text_color=_token_colors.get(token, _MUTED),
+                         ).pack(anchor="w")
+            ctk.CTkLabel(col, text=name,
+                         font=ctk.CTkFont(size=11),
+                         text_color=_TEXT2,
+                         ).pack(anchor="w")
+
+
+# ---------------------------------------------------------------------------
 # Dashboard Tab
 # ---------------------------------------------------------------------------
 
@@ -195,6 +251,10 @@ class DashboardTab(ctk.CTkFrame):
         self._card_ovms .grid(row=0, column=0, padx=(0, 5), pady=0, sticky="nsew")
         self._card_proxy.grid(row=0, column=1, padx=5,      pady=0, sticky="nsew")
         self._card_model.grid(row=0, column=2, padx=(5, 0), pady=0, sticky="nsew")
+
+        # ---- Hardware info ----
+        _section_header(self, "HARDWARE")
+        HardwareBar(self).pack(fill="x", padx=16, pady=(0, 4))
 
         # ---- Endpoint panel ----
         _section_header(self, "ENDPOINT")
