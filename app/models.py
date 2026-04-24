@@ -77,26 +77,65 @@ class ModelInfo:
 
     @property
     def repo_folder_name(self) -> str:
-        """Last component of the HF repo ID — used as the local folder name."""
+        """Last component of the HF repo ID — used as the default local folder name."""
         return self.hf_repo_id.split("/")[-1]
 
     @property
     def local_path(self) -> Path:
-        return cfg.models_dir / self.repo_folder_name
+        """
+        Return the path where the model lives on disk, or the intended download
+        path if it hasn't been downloaded yet.
+
+        Searches (in priority order):
+          1. models_dir / repo_folder_name           (standard)
+          2. models_dir / org / repo_folder_name     (OVMS pull-mode layout)
+          3. Any subdirectory (up to 2 levels) whose name matches
+             repo_folder_name case-insensitively and contains openvino_model.xml
+        Falls back to option 1 if nothing found.
+        """
+        base = cfg.models_dir
+        folder = self.repo_folder_name
+
+        # 1. Standard path
+        p1 = base / folder
+        if p1.is_dir() and _has_model_files(p1):
+            return p1
+
+        # 2. Org-prefixed path (e.g. models/OpenVINO/Qwen3-8B-int4-ov)
+        org = self.hf_repo_id.split("/")[0]
+        p2 = base / org / folder
+        if p2.is_dir() and _has_model_files(p2):
+            return p2
+
+        # 3. Broad scan: any dir with openvino_model.xml whose name
+        #    matches (exact, prefix, or suffix) the repo folder name
+        folder_lower = folder.lower()
+        if base.is_dir():
+            for candidate in base.rglob("openvino_model.xml"):
+                d = candidate.parent
+                d_lower = d.name.lower()
+                if (d_lower == folder_lower
+                        or folder_lower.startswith(d_lower)
+                        or d_lower.startswith(folder_lower)):
+                    return d
+
+        # Default: standard path (will be created on download)
+        return p1
 
     @property
     def is_downloaded(self) -> bool:
-        """True if the local directory exists and is non-empty."""
-        p = self.local_path
-        if not p.is_dir():
-            return False
-        # Consider downloaded if there's at least one file inside
-        return any(p.iterdir())
+        """True if a valid OpenVINO model directory exists on disk."""
+        return _has_model_files(self.local_path)
 
     @property
     def model_name_for_config(self) -> str:
         """The name written into config.json's mediapipe_config_list."""
         return self.repo_folder_name
+
+
+def _has_model_files(path: Path) -> bool:
+    """Return True if *path* is a directory containing openvino_model.xml."""
+    return path.is_dir() and (path / "openvino_model.xml").is_file()
 
 
 CURATED_MODELS: list[ModelInfo] = [
@@ -250,41 +289,43 @@ def _download_worker(
     model.download_progress = 0.0
 
     try:
-        from huggingface_hub import snapshot_download
-        from huggingface_hub import HfFileSystem
+        from huggingface_hub import snapshot_download, HfFileSystem
 
-        # --- Determine total size for progress calculation ---
-        total_files = 0
-        completed_files = 0
-
+        # Count expected files for progress estimation
         try:
             fs = HfFileSystem()
-            file_list = fs.ls(model.hf_repo_id, detail=False)
-            total_files = max(len(file_list), 1)
+            total_files = max(len(fs.ls(model.hf_repo_id, detail=False)), 1)
         except Exception:
-            total_files = 1  # fallback: can't enumerate, progress will be coarse
+            total_files = 15  # reasonable default for OV models
 
-        def _tqdm_progress_callback(info):
-            """
-            huggingface_hub passes a tqdm-like object.
-            We intercept file-level completion events.
-            """
-            nonlocal completed_files
-            # info is a dict with keys like 'downloaded_file_path', etc.
-            if isinstance(info, dict) and info.get("event") == "file_downloaded":
-                completed_files += 1
-                pct = min(100.0, (completed_files / total_files) * 100.0)
+        cfg.models_dir.mkdir(parents=True, exist_ok=True)
+        local_dir = cfg.models_dir / model.repo_folder_name
+
+        done_event = threading.Event()
+        exc_holder: list = [None]
+
+        def _dl():
+            try:
+                snapshot_download(repo_id=model.hf_repo_id, local_dir=str(local_dir))
+            except Exception as e:
+                exc_holder[0] = e
+            finally:
+                done_event.set()
+
+        threading.Thread(target=_dl, daemon=True, name=f"hf-{model.repo_folder_name}").start()
+
+        # Poll local_dir for file count while download runs in background
+        while not done_event.is_set():
+            if local_dir.is_dir():
+                n = sum(1 for f in local_dir.rglob("*") if f.is_file() and f.suffix != ".lock")
+                pct = min(98.0, (n / total_files) * 100.0)
                 model.download_progress = pct
                 if on_progress:
                     on_progress(model, pct)
+            done_event.wait(timeout=1.5)
 
-        cfg.models_dir.mkdir(parents=True, exist_ok=True)
-
-        local_dir = cfg.models_dir / model.repo_folder_name
-
-        # Use huggingface_hub >= 0.23 tqdm_class hook for progress
-        # For older versions we fall back to polling
-        _run_snapshot_download(model, local_dir, on_progress, total_files)
+        if exc_holder[0]:
+            raise exc_holder[0]
 
         model.download_progress = 100.0
         model.is_downloading = False
@@ -297,93 +338,3 @@ def _download_worker(
         logger.exception("Download failed for %s", model.hf_repo_id)
         if on_done:
             on_done(model, False, str(exc))
-
-
-def _run_snapshot_download(
-    model: ModelInfo,
-    local_dir: Path,
-    on_progress: ProgressCallback | None,
-    total_files: int,
-):
-    """
-    Perform the actual snapshot_download, piggybacking on the file-level
-    progress mechanism available in huggingface_hub >= 0.22.
-
-    Strategy:
-    - Wrap tqdm so each completed file updates the progress bar.
-    - If the tqdm hook is unavailable, fall back to a polling approach that
-      counts files appearing in local_dir.
-    """
-    # Try the newer `hf_transfer`-aware callback (hf_hub >= 0.22)
-    try:
-        from huggingface_hub import snapshot_download
-        from huggingface_hub.utils import tqdm as hf_tqdm
-
-        _completed = [0]
-
-        class _TrackingTqdm(hf_tqdm):
-            """Subclass that fires our callback on each file completion."""
-            def update(self, n=1):
-                super().update(n)
-                # Each 'file' tqdm bar represents one file
-                if self.total and self.n >= self.total:
-                    _completed[0] += 1
-                    pct = min(100.0, (_completed[0] / max(total_files, 1)) * 100.0)
-                    model.download_progress = pct
-                    if on_progress:
-                        on_progress(model, pct)
-
-        snapshot_download(
-            repo_id=model.hf_repo_id,
-            local_dir=str(local_dir),
-            local_dir_use_symlinks=False,
-            tqdm_class=_TrackingTqdm,
-        )
-
-    except TypeError:
-        # tqdm_class kwarg not supported in this version – use polling fallback
-        _snapshot_download_with_polling(model, local_dir, on_progress, total_files)
-
-
-def _snapshot_download_with_polling(
-    model: ModelInfo,
-    local_dir: Path,
-    on_progress: ProgressCallback | None,
-    total_files: int,
-):
-    """
-    Fallback: launch snapshot_download in a sub-thread, poll the local_dir
-    for new files, and report progress based on file count.
-    """
-    from huggingface_hub import snapshot_download
-    import threading as _threading
-
-    done_event = _threading.Event()
-    exc_holder = [None]
-
-    def _dl():
-        try:
-            snapshot_download(
-                repo_id=model.hf_repo_id,
-                local_dir=str(local_dir),
-                local_dir_use_symlinks=False,
-            )
-        except Exception as e:
-            exc_holder[0] = e
-        finally:
-            done_event.set()
-
-    t = _threading.Thread(target=_dl, daemon=True)
-    t.start()
-
-    while not done_event.is_set():
-        if local_dir.is_dir():
-            n = sum(1 for _ in local_dir.rglob("*") if _.is_file())
-            pct = min(99.0, (n / max(total_files, 1)) * 100.0)
-            model.download_progress = pct
-            if on_progress:
-                on_progress(model, pct)
-        done_event.wait(timeout=2)
-
-    if exc_holder[0]:
-        raise exc_holder[0]
