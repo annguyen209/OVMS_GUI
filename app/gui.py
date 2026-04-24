@@ -257,7 +257,7 @@ class DashboardTab(ctk.CTkFrame):
         self._schedule_poll()
 
     def _build_ui(self):
-        # ---- Status cards ----
+        # ---- Status cards + Hardware in one container (guarantees same width) ----
         _section_header(self, "SERVER STATUS")
 
         cards = ctk.CTkFrame(self, fg_color="transparent")
@@ -272,9 +272,16 @@ class DashboardTab(ctk.CTkFrame):
         self._card_proxy.grid(row=0, column=1, padx=5,      pady=0, sticky="nsew")
         self._card_model.grid(row=0, column=2, padx=(5, 0), pady=0, sticky="nsew")
 
-        # ---- Hardware info ----
-        _section_header(self, "HARDWARE")
-        HardwareBar(self).pack(fill="x", padx=16, pady=(0, 4))
+        # Hardware label (inside container so it tracks the same width)
+        _hw_lbl = ctk.CTkLabel(cards, text="HARDWARE",
+                               font=ctk.CTkFont(size=10, weight="bold"),
+                               text_color=_MUTED, anchor="w")
+        _hw_lbl.grid(row=1, column=0, columnspan=3,
+                     padx=2, pady=(10, 2), sticky="w")
+
+        # Hardware bar spans all 3 columns — guaranteed same width
+        HardwareBar(cards).grid(row=2, column=0, columnspan=3,
+                                padx=0, pady=0, sticky="nsew")
 
         # ---- Endpoint panel ----
         _section_header(self, "ENDPOINT")
