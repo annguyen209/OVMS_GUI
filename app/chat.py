@@ -45,6 +45,34 @@ _CHAT_BG   = "#f3f4f6"   # gray-100
 _BASE = lambda: f"http://localhost:{cfg.proxy_port}/v3/chat/completions"
 
 
+def _strip_markdown(text: str) -> str:
+    """Convert markdown to clean readable text."""
+    import re
+    # Code blocks → keep content, remove fences
+    text = re.sub(r"```[a-zA-Z]*\n?(.*?)\n?```", r"\1", text, flags=re.DOTALL)
+    # Inline code
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    # Headers
+    text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
+    # Bold / italic
+    text = re.sub(r"\*\*\*(.+?)\*\*\*", r"\1", text)
+    text = re.sub(r"\*\*(.+?)\*\*",   r"\1", text)
+    text = re.sub(r"\*(.+?)\*",       r"\1", text)
+    text = re.sub(r"___(.+?)___",     r"\1", text)
+    text = re.sub(r"__(.+?)__",       r"\1", text)
+    text = re.sub(r"_(.+?)_",         r"\1", text)
+    # Links — keep label
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+    # Bullet points → dash
+    text = re.sub(r"^[\*\-\+]\s+", "- ", text, flags=re.MULTILINE)
+    # Numbered lists — keep as-is
+    # Horizontal rules
+    text = re.sub(r"^[-*_]{3,}\s*$", "", text, flags=re.MULTILINE)
+    # Collapse 3+ blank lines to 2
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def stream_chat(
     messages: list[dict],
     model: str,
@@ -54,6 +82,7 @@ def stream_chat(
     max_tokens: int = 2048,
     use_tools: bool = False,
     on_tool_call: Callable[[str, str], None] | None = None,
+    on_messages_update: Callable[[list[dict]], None] | None = None,
 ):
     """
     Send a chat request, optionally with tool use (agentic loop).
@@ -110,6 +139,9 @@ def stream_chat(
                             # No tool call — deliver the content as final answer
                             if content:
                                 on_chunk(content)
+                            # Sync full message history (includes tool turns) back to caller
+                            if on_messages_update:
+                                on_messages_update(msgs)
                             on_done()
                             return
 
@@ -147,6 +179,8 @@ def stream_chat(
                             })
 
                     on_error("Tool call limit reached (5 rounds).")
+                    if on_messages_update:
+                        on_messages_update(msgs)
                     return
 
                 # Plain streaming (no tools)
@@ -474,6 +508,7 @@ class ChatTab(ctk.CTkFrame):
             on_error=self._on_error,
             use_tools=use_tools,
             on_tool_call=self._on_tool_call,
+            on_messages_update=self._on_messages_update,
         )
 
     def _scroll_to_bottom(self):
@@ -528,11 +563,16 @@ class ChatTab(ctk.CTkFrame):
             on_error=self._on_error,
             use_tools=self._tools_var.get(),
             on_tool_call=self._on_tool_call,
+            on_messages_update=self._on_messages_update,
         )
 
     # ------------------------------------------------------------------
     # Streaming callbacks (called from background thread - use .after)
     # ------------------------------------------------------------------
+
+    def _on_messages_update(self, msgs: list[dict]):
+        """Sync full message list (including tool turns) back from the worker."""
+        self.after(0, lambda: setattr(self, "_messages", list(msgs)))
 
     def _on_tool_call(self, name: str, result: str):
         """Show a compact tool-call notice in the chat."""
@@ -562,8 +602,14 @@ class ChatTab(ctk.CTkFrame):
         self._status.configure(text="", text_color=_MUTED)
 
         if self._active_bubble:
-            content = self._active_bubble.get_text()
-            self._messages.append({"role": "assistant", "content": content})
+            raw     = self._active_bubble.get_text()
+            cleaned = _strip_markdown(raw)
+            # Update bubble display with clean text
+            if cleaned != raw:
+                self._active_bubble._text_var.set(cleaned)
+            # Only append to history if tools didn't already sync it
+            if not self._messages or self._messages[-1].get("role") != "assistant":
+                self._messages.append({"role": "assistant", "content": cleaned})
             self._scroll_to_bottom()
         self._active_bubble = None
 
