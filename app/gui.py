@@ -19,6 +19,7 @@ from app.models import CURATED_MODELS, ModelInfo, download_model, activate_model
 from app.log_viewer import LogViewerWidget
 from app.config import cfg
 from app.chat import ChatTab
+from app.guide import GuideTab
 
 logger = logging.getLogger(__name__)
 
@@ -752,6 +753,7 @@ class App(ctk.CTk):
         self._tabs.add("Dashboard")
         self._tabs.add("Models")
         self._tabs.add("Chat")
+        self._tabs.add("Guide")
         self._tabs.add("Settings")
 
         self._dashboard = DashboardTab(self._tabs.tab("Dashboard"), server=self._server)
@@ -763,8 +765,18 @@ class App(ctk.CTk):
         self._chat_tab = ChatTab(self._tabs.tab("Chat"))
         self._chat_tab.pack(fill="both", expand=True)
 
+        self._guide_tab = GuideTab(self._tabs.tab("Guide"))
+        self._guide_tab.pack(fill="both", expand=True)
+
         self._settings_tab = SettingsTab(self._tabs.tab("Settings"))
         self._settings_tab.pack(fill="both", expand=True)
+
+        # Refresh guide code blocks when tab becomes visible
+        self._tabs.configure(command=self._on_tab_change)
+
+    def _on_tab_change(self):
+        if self._tabs.get() == "Guide":
+            self._guide_tab.on_show()
 
     # ------------------------------------------------------------------
     # System tray
