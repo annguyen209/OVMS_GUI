@@ -41,6 +41,8 @@ _TEXT   = "#e2e8f0"
 _MUTED  = "#64748b"
 
 _POLL_MS = 3000
+APP_VERSION = "1.0.0"
+APP_AUTHOR  = "anzdev4life"
 
 
 # ---------------------------------------------------------------------------
@@ -715,8 +717,36 @@ class App(ctk.CTk):
             command=self._quit,
         ).pack(side="right", padx=18)
 
+        # Footer
+        footer = ctk.CTkFrame(self, height=28, fg_color="#080814", corner_radius=0)
+        footer.pack(fill="x", side="bottom")
+        footer.pack_propagate(False)
+
+        ctk.CTkLabel(
+            footer,
+            text=f"OVMS Manager  v{APP_VERSION}",
+            font=ctk.CTkFont(size=10),
+            text_color=_MUTED,
+        ).pack(side="left", padx=16)
+
+        ctk.CTkLabel(
+            footer,
+            text=f"by {APP_AUTHOR}",
+            font=ctk.CTkFont(size=10),
+            text_color=_MUTED,
+        ).pack(side="right", padx=16)
+
+        ctk.CTkFrame(footer, width=1, fg_color=_BORDER).pack(side="right")
+
+        ctk.CTkLabel(
+            footer,
+            text="github.com/annguyen209/OVMS_GUI",
+            font=ctk.CTkFont(size=10),
+            text_color=_MUTED,
+        ).pack(side="right", padx=16)
+
         self._tabs = ctk.CTkTabview(self, anchor="nw")
-        self._tabs.pack(fill="both", expand=True, padx=12, pady=12)
+        self._tabs.pack(fill="both", expand=True, padx=12, pady=(12, 4))
 
         self._tabs.add("Dashboard")
         self._tabs.add("Models")
