@@ -15,7 +15,7 @@ import customtkinter as ctk
 import httpx
 
 from app.config import cfg
-from app.models import read_active_model_name
+from app.models import read_active_model_name, CURATED_MODELS
 from app.tools import TOOL_DEFINITIONS, execute_tool, parse_text_tool_call
 from app import theme
 
@@ -387,8 +387,21 @@ class ChatTab(ctk.CTkFrame):
         ctk.CTkLabel(top, text="Model:", font=ctk.CTkFont(size=12),
                      text_color=theme.MUTED).pack(side="left", padx=(14, 4), pady=12)
 
-        self._model_entry = ctk.CTkEntry(top, font=ctk.CTkFont(size=12), width=280, height=30)
-        self._model_entry.pack(side="left", pady=9)
+        self._model_combo = ctk.CTkComboBox(
+            top,
+            values=[""],
+            font=ctk.CTkFont(size=12),
+            width=300, height=30,
+            fg_color=theme.CARD2,
+            border_color=theme.BORDER2,
+            button_color=theme.BORDER2,
+            button_hover_color=theme.BORDER,
+            dropdown_fg_color=theme.CARD,
+            dropdown_hover_color=theme.CARD2,
+            dropdown_text_color=theme.TEXT,
+            text_color=theme.TEXT,
+        )
+        self._model_combo.pack(side="left", pady=9)
         self._refresh_model_name()
 
         ctk.CTkButton(
@@ -494,12 +507,23 @@ class ChatTab(ctk.CTkFrame):
     # ------------------------------------------------------------------
 
     def _refresh_model_name(self):
-        name = read_active_model_name() or "qwen2.5-coder-7b"
-        self._model_entry.delete(0, "end")
-        self._model_entry.insert(0, name)
+        active = read_active_model_name()
+        names: list[str] = []
+        if active:
+            names.append(active)
+        for m in CURATED_MODELS:
+            name = m.model_name_for_config
+            if m.is_downloaded and name not in names:
+                names.append(name)
+        if not names:
+            names = [active or "qwen2.5-coder-7b-instruct-int4-ov"]
+        self._model_combo.configure(values=names)
+        current = self._model_combo.get()
+        if not current or current not in names:
+            self._model_combo.set(names[0])
 
     def _current_model(self) -> str:
-        return self._model_entry.get().strip() or read_active_model_name() or "qwen2.5-coder-7b"
+        return self._model_combo.get().strip() or read_active_model_name() or "qwen2.5-coder-7b-instruct-int4-ov"
 
     def _clear(self):
         self._messages.clear()
