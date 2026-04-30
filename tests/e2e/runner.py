@@ -80,7 +80,12 @@ def _reinstall_venv(h: TestHarness):
     h.tab("Setup")
     h.setup.install("Python 3.x venv")
     h.wait(lambda: _VENV_PY.is_file(), timeout=120, label="venv file created")
-    # Packages (fastapi, httpx, openvino, etc.) were lost when venv was removed — reinstall all
+    # Wait for the venv row to finish (pip upgrade) before starting package install
+    # — prevents two concurrent pip processes on the same venv
+    row = h.setup._find_row("Python 3.x venv")
+    h.wait(lambda: not row._busy, timeout=120, label="venv row idle")
+    time.sleep(1)  # small buffer after pip upgrade completes
+    # Now packages are safe to install
     h.setup.install_all()
     h.setup.wait_all_ok(timeout=1800)
 
