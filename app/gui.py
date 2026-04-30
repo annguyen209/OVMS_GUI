@@ -595,19 +595,45 @@ class ModelRow(ctk.CTkFrame):
 
     def _delete_model(self):
         import tkinter.messagebox as _mb
-        import shutil
+        import shutil, os
+        from pathlib import Path
+
+        model_path = self._model.local_path
+
+        # Locate HF cache entry: ~/.cache/huggingface/hub/models--<org>--<name>
+        repo_id  = self._model.hf_repo_id          # e.g. OpenVINO/Qwen2.5-...
+        cache_name = "models--" + repo_id.replace("/", "--")
+        hf_cache = Path(os.path.expanduser("~")) / ".cache" / "huggingface" / "hub" / cache_name
+
+        lines = [f"Model folder:\n  {model_path}"]
+        if hf_cache.is_dir():
+            cache_mb = sum(f.stat().st_size for f in hf_cache.rglob("*") if f.is_file()) // 1024 // 1024
+            lines.append(f"\nHuggingFace cache ({cache_mb} MB):\n  {hf_cache}")
+        lines.append("\nThis cannot be undone.")
+
         if not _mb.askyesno(
             "Delete Model",
-            f"Delete '{self._model.display_name}' from disk?\n\n"
-            f"{self._model.local_path}\n\nThis cannot be undone.",
+            f"Delete '{self._model.display_name}'?\n\n" + "".join(lines),
             icon="warning",
         ):
             return
+
+        errors = []
         try:
-            shutil.rmtree(self._model.local_path)
-            self._notify(f"Deleted: {self._model.display_name}", theme.MUTED)
+            shutil.rmtree(model_path, ignore_errors=True)
         except Exception as exc:
-            self._notify(f"Delete failed: {exc}", theme.RED)
+            errors.append(str(exc))
+
+        if hf_cache.is_dir():
+            try:
+                shutil.rmtree(hf_cache, ignore_errors=True)
+            except Exception as exc:
+                errors.append(str(exc))
+
+        if errors:
+            self._notify(f"Delete errors: {'; '.join(errors)}", theme.RED)
+        else:
+            self._notify(f"Deleted: {self._model.display_name}", theme.MUTED)
         self.refresh()
 
     def _on_progress(self, model: ModelInfo, pct: float):
