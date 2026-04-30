@@ -11,14 +11,12 @@ from pathlib import Path
 
 import customtkinter as ctk
 
+from app import theme
+
 logger = logging.getLogger(__name__)
 
 _TAIL_LINES = 20          # number of lines to show
 _REFRESH_MS  = 2000       # milliseconds between refreshes
-
-_CARD2   = "#f9fafb"   # secondary surfaces (gray-50)
-_TEXT2   = "#374151"   # secondary text (gray-700)
-_BORDER  = "#e5e7eb"   # borders (gray-200)
 
 
 class LogViewerWidget(ctk.CTkFrame):
@@ -81,10 +79,10 @@ class LogViewerWidget(ctk.CTkFrame):
             wrap="word",
             font=ctk.CTkFont(family="Consolas", size=11),
             state="disabled",
-            fg_color=_CARD2,
-            text_color=_TEXT2,
+            fg_color=theme.CARD2,
+            text_color=theme.TEXT2,
             border_width=1,
-            border_color=_BORDER,
+            border_color=theme.BORDER,
         )
         self._textbox.pack(fill="both", expand=True, padx=4, pady=4)
 

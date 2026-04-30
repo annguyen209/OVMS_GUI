@@ -14,23 +14,7 @@ import customtkinter as ctk
 
 from app.config import cfg
 from app.models import read_active_model_name
-
-# Palette (enterprise light theme)
-_BG      = "#f3f4f6"
-_CARD    = "#ffffff"
-_CARD2   = "#f9fafb"
-_BORDER  = "#e5e7eb"
-_BORDER2 = "#d1d5db"
-_TEXT    = "#111827"
-_TEXT2   = "#374151"
-_MUTED   = "#6b7280"
-_GREEN   = "#107c10"
-_BLUE    = "#0078d4"
-_BLUE_H  = "#106ebe"
-_CODE_BG = "#1e293b"   # dark slate - code block bg
-_CODE_FG = "#e2e8f0"   # light text on dark code block
-_TAG_BLUE  = "#dbeafe"
-_TAG_GREEN = "#dcfce7"
+from app import theme
 
 
 # Helpers
@@ -47,12 +31,12 @@ def _base_url() -> str:
 class _Tag(ctk.CTkLabel):
     """Small pill badge."""
     _COLORS = {
-        "blue":  (_TAG_BLUE,  _BLUE),
-        "green": (_TAG_GREEN, _GREEN),
+        "blue":  ("#dbeafe", theme.BLUE),
+        "green": ("#dcfce7", theme.GREEN),
     }
 
     def __init__(self, master, text: str, color: str = "blue", **kw):
-        bg, fg = self._COLORS.get(color, (_TAG_BLUE, _BLUE))
+        bg, fg = self._COLORS.get(color, (_TAGtheme.BLUE, theme.BLUE))
         super().__init__(master, text=text,
                          font=ctk.CTkFont(size=10, weight="bold"),
                          fg_color=bg, text_color=fg,
@@ -64,10 +48,10 @@ class _SectionCard(ctk.CTkFrame):
 
     def __init__(self, master, title: str, subtitle: str = "",
                  tags: list[tuple[str, str]] | None = None, **kw):
-        kw.setdefault("fg_color", _CARD)
+        kw.setdefault("fg_color", theme.CARD)
         kw.setdefault("corner_radius", 8)
         kw.setdefault("border_width", 1)
-        kw.setdefault("border_color", _BORDER)
+        kw.setdefault("border_color", theme.BORDER)
         super().__init__(master, **kw)
 
         # Header row
@@ -76,7 +60,7 @@ class _SectionCard(ctk.CTkFrame):
 
         ctk.CTkLabel(hdr, text=title,
                      font=ctk.CTkFont(size=14, weight="bold"),
-                     text_color=_TEXT).pack(side="left")
+                     text_color=theme.TEXT).pack(side="left")
 
         if tags:
             for t, c in tags:
@@ -86,7 +70,7 @@ class _SectionCard(ctk.CTkFrame):
 
         if subtitle:
             ctk.CTkLabel(self, text=subtitle,
-                         font=ctk.CTkFont(size=12), text_color=_MUTED,
+                         font=ctk.CTkFont(size=12), text_color=theme.MUTED,
                          anchor="w", wraplength=860).pack(fill="x", padx=18, pady=(0, 10))
 
         # Content area - children should pack into self
@@ -115,17 +99,17 @@ class _CodeBlock(ctk.CTkFrame):
         lbl_row.pack(fill="x", pady=(8, 2))
         ctk.CTkLabel(lbl_row, text=label,
                      font=ctk.CTkFont(size=11, weight="bold"),
-                     text_color=_TEXT2).pack(side="left")
+                     text_color=theme.TEXT2).pack(side="left")
 
         # Code frame
-        code_frame = ctk.CTkFrame(self, fg_color=_CODE_BG, corner_radius=8)
+        code_frame = ctk.CTkFrame(self, fg_color=theme.CODE_BG, corner_radius=8)
         code_frame.pack(fill="x")
 
         self._textbox = ctk.CTkTextbox(
             code_frame,
             font=ctk.CTkFont(family="Consolas", size=12),
-            fg_color=_CODE_BG,
-            text_color=_CODE_FG,
+            fg_color=theme.CODE_BG,
+            text_color=theme.CODE_FG,
             wrap="none",
             state="normal",
             border_width=0,
@@ -137,7 +121,7 @@ class _CodeBlock(ctk.CTkFrame):
         copy_row.pack(fill="x", padx=8, pady=(0, 6))
         self._copied_lbl = ctk.CTkLabel(copy_row, text="",
                                         font=ctk.CTkFont(size=10),
-                                        text_color=_GREEN)
+                                        text_color=theme.GREEN)
         self._copied_lbl.pack(side="left", padx=4)
         ctk.CTkButton(copy_row, text="Copy", width=60, height=24,
                       font=ctk.CTkFont(size=11),
@@ -171,14 +155,14 @@ class _Step(ctk.CTkFrame):
 
         # Number circle
         canvas = tk.Canvas(self, width=26, height=26,
-                           bg=_CARD, highlightthickness=0)
+                           bg=theme.CARD, highlightthickness=0)
         canvas.pack(side="left", anchor="n", pady=2)
-        canvas.create_oval(1, 1, 25, 25, fill=_BLUE, outline="")
+        canvas.create_oval(1, 1, 25, 25, fill=theme.BLUE, outline="")
         canvas.create_text(13, 13, text=str(number),
                            fill="white", font=("Segoe UI", 10, "bold"))
 
         ctk.CTkLabel(self, text=text,
-                     font=ctk.CTkFont(size=12), text_color=_TEXT2,
+                     font=ctk.CTkFont(size=12), text_color=theme.TEXT2,
                      anchor="w", justify="left",
                      wraplength=800).pack(side="left", padx=(10, 0), pady=4)
 
@@ -188,14 +172,14 @@ class _Step(ctk.CTkFrame):
 class GuideTab(ctk.CTkFrame):
 
     def __init__(self, master, **kw):
-        kw.setdefault("fg_color", _BG)
+        kw.setdefault("fg_color", theme.BG)
         super().__init__(master, **kw)
         self._code_blocks: list[_CodeBlock] = []
         self._build_ui()
 
     def _build_ui(self):
         # Master scroll area
-        scroll = ctk.CTkScrollableFrame(self, fg_color=_BG, corner_radius=0)
+        scroll = ctk.CTkScrollableFrame(self, fg_color=theme.BG, corner_radius=0)
         scroll.pack(fill="both", expand=True, padx=0, pady=0)
 
         inner = ctk.CTkFrame(scroll, fg_color="transparent")
@@ -219,18 +203,18 @@ class GuideTab(ctk.CTkFrame):
         row.columnconfigure((0, 1), weight=1)
 
         for col, (lbl, fn, accent) in enumerate([
-            ("Base URL",    _base_url,     _BLUE),
-            ("Active Model", _active_model, _GREEN),
+            ("Base URL",    _base_url,     theme.BLUE),
+            ("Active Model", _active_model, theme.GREEN),
         ]):
-            f = ctk.CTkFrame(row, fg_color=_CARD2, corner_radius=8,
-                             border_width=1, border_color=_BORDER)
+            f = ctk.CTkFrame(row, fg_color=theme.CARD2, corner_radius=8,
+                             border_width=1, border_color=theme.BORDER)
             f.grid(row=0, column=col, padx=(0 if col else 0, 6 if col == 0 else 0), sticky="ew")
             ctk.CTkLabel(f, text=lbl, font=ctk.CTkFont(size=10, weight="bold"),
                          text_color=accent).pack(anchor="w", padx=12, pady=(8, 2))
             var = tk.StringVar(value=fn())
             ctk.CTkLabel(f, textvariable=var,
                          font=ctk.CTkFont(family="Consolas", size=13),
-                         text_color=_TEXT).pack(anchor="w", padx=12, pady=(0, 8))
+                         text_color=theme.TEXT).pack(anchor="w", padx=12, pady=(0, 8))
             # Keep var refreshable
             setattr(self, f"_var_{col}", (var, fn))
 

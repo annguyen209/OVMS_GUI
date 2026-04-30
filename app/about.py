@@ -11,21 +11,7 @@ import customtkinter as ctk
 from pathlib import Path
 
 from app.config import cfg
-
-_BG      = "#f3f4f6"
-_CARD    = "#ffffff"
-_CARD2   = "#f9fafb"
-_BORDER  = "#e5e7eb"
-_BORDER2 = "#d1d5db"
-_TEXT    = "#111827"
-_TEXT2   = "#374151"
-_MUTED   = "#6b7280"
-_GREEN   = "#107c10"
-_BLUE    = "#0078d4"
-_BLUE_H  = "#106ebe"
-_RED     = "#a4262c"
-_AMBER   = "#c55000"
-_BANNER  = "#1b1f23"
+from app import theme
 
 APP_VERSION = "1.0.0"
 APP_AUTHOR  = "AnsCodeLab"
@@ -96,13 +82,13 @@ def _detect_devices() -> list[tuple[str, str, str]]:
 
 class _Card(ctk.CTkFrame):
     def __init__(self, master, **kw):
-        kw.setdefault("fg_color", _CARD)
+        kw.setdefault("fg_color", theme.CARD)
         kw.setdefault("corner_radius", 8)
         kw.setdefault("border_width", 1)
-        kw.setdefault("border_color", _BORDER)
+        kw.setdefault("border_color", theme.BORDER)
         super().__init__(master, **kw)
 
-    def add_heading(self, text: str, color: str = _BLUE):
+    def add_heading(self, text: str, color: str = theme.BLUE):
         ctk.CTkLabel(self, text=text,
                      font=ctk.CTkFont(size=14, weight="bold"),
                      text_color=color, anchor="w",
@@ -111,13 +97,13 @@ class _Card(ctk.CTkFrame):
 
     def add_body(self, text: str):
         ctk.CTkLabel(self, text=text,
-                     font=ctk.CTkFont(size=12), text_color=_TEXT2,
+                     font=ctk.CTkFont(size=12), text_color=theme.TEXT2,
                      anchor="w", justify="left", wraplength=860,
                      ).pack(fill="x", padx=18, pady=(0, 14))
         return self
 
     def add_divider(self):
-        ctk.CTkFrame(self, height=1, fg_color=_BORDER).pack(
+        ctk.CTkFrame(self, height=1, fg_color=theme.BORDER).pack(
             fill="x", padx=18, pady=4)
         return self
 
@@ -127,12 +113,12 @@ class _Card(ctk.CTkFrame):
 class AboutTab(ctk.CTkFrame):
 
     def __init__(self, master, **kw):
-        kw.setdefault("fg_color", _BG)
+        kw.setdefault("fg_color", theme.BG)
         super().__init__(master, **kw)
         self._build_ui()
 
     def _build_ui(self):
-        scroll = ctk.CTkScrollableFrame(self, fg_color=_BG, corner_radius=0)
+        scroll = ctk.CTkScrollableFrame(self, fg_color=theme.BG, corner_radius=0)
         scroll.pack(fill="both", expand=True)
 
         inner = ctk.CTkFrame(scroll, fg_color="transparent")
@@ -146,7 +132,7 @@ class AboutTab(ctk.CTkFrame):
     # Hero
 
     def _build_hero(self, parent):
-        hero = ctk.CTkFrame(parent, fg_color=_BANNER, corner_radius=10)
+        hero = ctk.CTkFrame(parent, fg_color=theme.BANNER, corner_radius=10)
         hero.pack(fill="x", pady=(0, 14))
 
         # Title row
@@ -159,13 +145,13 @@ class AboutTab(ctk.CTkFrame):
 
         ctk.CTkLabel(top, text=f"  v{APP_VERSION}",
                      font=ctk.CTkFont(size=13),
-                     text_color=_MUTED).pack(side="left", padx=10)
+                     text_color=theme.MUTED).pack(side="left", padx=10)
 
         ctk.CTkLabel(hero,
                      text="A desktop GUI for managing OpenVINO Model Server. "
                           "Download models, start the server, and connect your "
                           "IDE to a local AI backend running entirely on your Intel hardware.",
-                     font=ctk.CTkFont(size=13), text_color=_MUTED,
+                     font=ctk.CTkFont(size=13), text_color=theme.MUTED,
                      anchor="w", justify="left", wraplength=860,
                      ).pack(fill="x", padx=24, pady=(0, 20))
 
@@ -174,7 +160,7 @@ class AboutTab(ctk.CTkFrame):
     def _build_openvino(self, parent):
         card = _Card(parent)
         card.pack(fill="x", pady=(0, 12))
-        card.add_heading("What is OpenVINO?", _BLUE)
+        card.add_heading("What is OpenVINO?", theme.BLUE)
         card.add_body(
             "OpenVINO (Open Visual Inference and Neural network Optimization) is an "
             "open-source toolkit from Intel for optimizing and deploying AI inference. "
@@ -183,7 +169,7 @@ class AboutTab(ctk.CTkFrame):
             "NPU (Neural Processing Unit) - without needing a discrete GPU."
         )
         card.add_divider()
-        card.add_heading("Why OpenVINO instead of Ollama?", _BLUE)
+        card.add_heading("Why OpenVINO instead of Ollama?", theme.BLUE)
         card.add_body(
             "Ollama uses llama.cpp which does not support Intel Arc iGPU on Windows. "
             "It falls back to CPU-only inference. OpenVINO is purpose-built for Intel "
@@ -214,7 +200,7 @@ class AboutTab(ctk.CTkFrame):
     def _build_ovms(self, parent):
         card = _Card(parent)
         card.pack(fill="x", pady=(0, 12))
-        card.add_heading("What is OpenVINO Model Server (OVMS)?", _BLUE)
+        card.add_heading("What is OpenVINO Model Server (OVMS)?", theme.BLUE)
         card.add_body(
             "OVMS is Intel's production-grade model serving binary. It wraps OpenVINO "
             "inference in an HTTP/gRPC server and exposes an OpenAI-compatible REST API "
@@ -226,27 +212,27 @@ class AboutTab(ctk.CTkFrame):
         card.add_divider()
 
         # How it fits together
-        card.add_heading("How this app fits together", _BLUE)
+        card.add_heading("How this app fits together", theme.BLUE)
 
         steps = [
-            ("1", "OVMS loads the model onto the Arc iGPU and listens on port 8000.",  _BLUE),
-            ("2", "A thin proxy on port 8001 clamps max_tokens so requests never exceed the model's context window.", _BLUE),
-            ("3", "Your IDE extension (Continue.dev or OpenCode) connects to localhost:8001/v3 - just like it would to the OpenAI API.", _GREEN),
+            ("1", "OVMS loads the model onto the Arc iGPU and listens on port 8000.",  theme.BLUE),
+            ("2", "A thin proxy on port 8001 clamps max_tokens so requests never exceed the model's context window.", theme.BLUE),
+            ("3", "Your IDE extension (Continue.dev or OpenCode) connects to localhost:8001/v3 - just like it would to the OpenAI API.", theme.GREEN),
         ]
         for num, text, color in steps:
-            row = ctk.CTkFrame(card, fg_color=_CARD2, corner_radius=6,
-                               border_width=1, border_color=_BORDER)
+            row = ctk.CTkFrame(card, fg_color=theme.CARD2, corner_radius=6,
+                               border_width=1, border_color=theme.BORDER)
             row.pack(fill="x", padx=16, pady=(0, 6))
 
             dot = tk.Canvas(row, width=28, height=28,
-                            bg=_CARD2, highlightthickness=0)
+                            bg=theme.CARD2, highlightthickness=0)
             dot.pack(side="left", padx=(12, 10), pady=10)
-            dot.create_oval(2, 2, 26, 26, fill=_BLUE, outline="")
+            dot.create_oval(2, 2, 26, 26, fill=theme.BLUE, outline="")
             dot.create_text(14, 14, text=num, fill="white",
                             font=("Segoe UI", 11, "bold"))
 
             ctk.CTkLabel(row, text=text, font=ctk.CTkFont(size=12),
-                         text_color=_TEXT2, anchor="w", justify="left",
+                         text_color=theme.TEXT2, anchor="w", justify="left",
                          wraplength=820).pack(side="left", padx=(0, 12),
                                               pady=10, fill="x", expand=True)
 
@@ -264,17 +250,17 @@ class AboutTab(ctk.CTkFrame):
         info_row.pack(fill="x", padx=18, pady=16)
 
         for label, value, color in [
-            ("Application",  "OVMS Manager",       _TEXT),
-            ("Version",      f"v{APP_VERSION}",    _BLUE),
-            ("Author",       APP_AUTHOR,            _TEXT),
-            ("Repository",   APP_REPO,              _TEXT),
-            ("License",      "MIT",                 _TEXT),
+            ("Application",  "OVMS Manager",       theme.TEXT),
+            ("Version",      f"v{APP_VERSION}",    theme.BLUE),
+            ("Author",       APP_AUTHOR,            theme.TEXT),
+            ("Repository",   APP_REPO,              theme.TEXT),
+            ("License",      "MIT",                 theme.TEXT),
         ]:
             col = ctk.CTkFrame(info_row, fg_color="transparent")
             col.pack(side="left", expand=True, fill="x")
             ctk.CTkLabel(col, text=label,
                          font=ctk.CTkFont(size=10, weight="bold"),
-                         text_color=_MUTED).pack(anchor="w")
+                         text_color=theme.MUTED).pack(anchor="w")
             ctk.CTkLabel(col, text=value,
                          font=ctk.CTkFont(size=13, weight="bold"),
                          text_color=color).pack(anchor="w")
@@ -284,5 +270,5 @@ class AboutTab(ctk.CTkFrame):
         ctk.CTkLabel(card,
                      text="Built with Python · customtkinter · OpenVINO GenAI · "
                           "OpenVINO Model Server · HuggingFace Hub",
-                     font=ctk.CTkFont(size=11), text_color=_MUTED,
+                     font=ctk.CTkFont(size=11), text_color=theme.MUTED,
                      anchor="w").pack(fill="x", padx=18, pady=(4, 16))
