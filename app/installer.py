@@ -26,6 +26,11 @@ from app.config import cfg
 LogCb  = Callable[[str], None]
 DoneCb = Callable[[bool, str], None]
 
+# Managed venv — always at this fixed location regardless of cfg.python_exe
+import os as _os
+_VENV_DIR = Path(_os.environ.get("LOCALAPPDATA") or _os.path.expanduser("~")) / "OVMS Manager" / "env"
+_VENV_PY  = _VENV_DIR / "Scripts" / "python.exe"
+
 # ── OVMS release ──────────────────────────────────────────────────────────
 OVMS_VERSION  = "v2026.1"
 OVMS_ZIP_URL  = (
@@ -62,8 +67,8 @@ def check_ovms() -> bool:
 
 
 def check_venv() -> bool:
-    """True if the configured python venv exe exists."""
-    return Path(cfg.python_exe).is_file()
+    """True if the managed venv exists at its fixed location."""
+    return _VENV_PY.is_file()
 
 
 _IMPORT_MAP = {
@@ -149,7 +154,7 @@ def install_venv(on_log: LogCb, on_done: DoneCb):
                     "Python 3.12 not found. Install it from python.org or via 'uv python install 3.12'.")
             return
 
-        venv_path = Path(cfg.python_exe).parent.parent  # Scripts/../
+        venv_path = _VENV_DIR
         on_log(f"Creating venv at {venv_path} using {py}...")
         try:
             r = subprocess.run(
@@ -160,9 +165,11 @@ def install_venv(on_log: LogCb, on_done: DoneCb):
             if r.returncode != 0:
                 on_done(False, f"venv creation failed:\n{r.stderr}")
                 return
+            # Point cfg to the new venv so subsequent pip installs use it
+            cfg.set("python_exe", str(_VENV_PY))
             on_log("Upgrading pip...")
             subprocess.run(
-                [cfg.python_exe, "-m", "pip", "install", "--upgrade", "pip"],
+                [str(_VENV_PY), "-m", "pip", "install", "--upgrade", "pip"],
                 capture_output=True, timeout=60,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
@@ -319,11 +326,13 @@ def _pip_uninstall(pkgs: list[str], on_log: LogCb, on_done: DoneCb, label: str):
 
 def uninstall_venv(on_log: LogCb, on_done: DoneCb):
     def _worker():
-        venv_path = Path(cfg.python_exe).parent.parent
+        venv_path = _VENV_DIR
         on_log(f"Removing Python venv at {venv_path}...")
         try:
             if venv_path.exists():
                 shutil.rmtree(venv_path)
+                # Reset python_exe to the (now absent) default managed path
+                cfg.set("python_exe", str(_VENV_PY))
                 on_done(True, "Python venv removed.")
             else:
                 on_done(False, "Venv directory not found.")
