@@ -304,8 +304,10 @@ def _download_worker(
     # Verify huggingface_hub is importable; if not, guide user to check setup
     try:
         from huggingface_hub import snapshot_download as _sd_check  # noqa: F401
-    except ImportError:
+        logger.info("Download: huggingface_hub import OK for %s", model.hf_repo_id)
+    except ImportError as ie:
         model.is_downloading = False
+        logger.error("Download: huggingface_hub ImportError: %s", ie)
         if on_done:
             on_done(model, False,
                     "huggingface_hub not found. Go to Setup tab and reinstall the Python environment.")
@@ -320,29 +322,52 @@ def _download_worker(
             fs = HfFileSystem()
             entries = fs.ls(model.hf_repo_id, detail=True)
             total_bytes = sum(e.get("size", 0) for e in entries if isinstance(e, dict))
-        except Exception:
-            pass
+            logger.info("Download: total_bytes=%d for %s", total_bytes, model.hf_repo_id)
+        except Exception as e:
+            logger.warning("Download: could not get file sizes (%s), using file count fallback", e)
 
         cfg.models_dir.mkdir(parents=True, exist_ok=True)
         local_dir = cfg.models_dir / model.repo_folder_name
+        logger.info("Download: local_dir=%s", local_dir)
+
+        # Clean up stale zero-byte lock/incomplete files from a previous
+        # interrupted download so snapshot_download can start fresh.
+        dl_cache = local_dir / ".cache" / "huggingface" / "download"
+        if dl_cache.is_dir():
+            stale = [f for f in dl_cache.iterdir()
+                     if f.is_file() and f.stat().st_size == 0]
+            for f in stale:
+                try:
+                    f.unlink()
+                except Exception:
+                    pass
+            logger.info("Download: cleared %d stale lock files", len(stale))
 
         done_event = threading.Event()
         exc_holder: list = [None]
 
+        logger.info("Download: starting snapshot_download thread")
+
         def _dl():
             try:
+                logger.info("Download: snapshot_download begin repo=%s dir=%s",
+                             model.hf_repo_id, local_dir)
                 snapshot_download(
                     repo_id=model.hf_repo_id,
                     local_dir=str(local_dir),
                 )
+                logger.info("Download: snapshot_download finished OK")
             except Exception as e:
+                logger.error("Download: snapshot_download FAILED: %s", e)
                 exc_holder[0] = e
             finally:
                 done_event.set()
 
         threading.Thread(target=_dl, daemon=True, name=f"hf-{model.repo_folder_name}").start()
 
-        # Poll local_dir for downloaded bytes while download runs in background
+        # Poll local_dir for downloaded bytes while download runs in background.
+        # Include .incomplete staging files — they contain actual data being
+        # written by snapshot_download before the atomic rename to final paths.
         while not done_event.is_set():
             if cancel_event and cancel_event.is_set():
                 model.is_downloading = False
@@ -353,13 +378,13 @@ def _download_worker(
             if local_dir.is_dir():
                 downloaded = sum(
                     f.stat().st_size for f in local_dir.rglob("*")
-                    if f.is_file() and f.suffix not in (".lock", ".tmp")
+                    if f.is_file() and f.suffix != ".lock"
                 )
                 if total_bytes > 0:
                     pct = min(98.0, downloaded / total_bytes * 100.0)
                 else:
-                    # fallback: file count estimate
-                    n = sum(1 for f in local_dir.rglob("*") if f.is_file() and f.suffix not in (".lock", ".tmp"))
+                    n = sum(1 for f in local_dir.rglob("*")
+                            if f.is_file() and f.suffix != ".lock")
                     pct = min(98.0, n / 15 * 100.0)
                 model.download_progress = pct
                 if on_progress:
