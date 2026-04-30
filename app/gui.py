@@ -301,7 +301,7 @@ class DashboardTab(ctk.CTkFrame):
         # ---- Log ----
         _section_header(self, "SERVER LOG")
         self._log_viewer = LogViewerWidget(
-            self, log_path=cfg.ovms_log, tail_lines=25, refresh_ms=2000,
+            self, log_path=cfg.ovms_gui_log, tail_lines=25, refresh_ms=2000,
         )
         self._log_viewer.pack(fill="both", expand=True, padx=16, pady=(0, 12))
         self._log_viewer.start()

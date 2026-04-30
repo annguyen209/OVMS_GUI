@@ -250,6 +250,14 @@ class AppConfig:
         return self._data.get("ovms_device", "GPU")
 
     @property
+    def ovms_gui_log(self) -> str:
+        """Path of the log file the GUI-launched OVMS process writes to."""
+        log = self.ovms_log
+        if "ovms-server.log" in log:
+            return log.replace("ovms-server.log", "ovms-gui.log")
+        return log + ".gui"
+
+    @property
     def health_endpoint(self) -> str:
         return f"http://localhost:{self.ovms_rest_port}/v3/models"
 

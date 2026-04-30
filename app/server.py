@@ -170,9 +170,7 @@ class ServerManager:
             # Ensure log and workspace directories exist
             Path(cfg.ovms_log).parent.mkdir(parents=True, exist_ok=True)
             cfg.ovms_workspace.mkdir(parents=True, exist_ok=True)
-            # Use a GUI-specific log to avoid colliding with an external OVMS process
-            gui_log = cfg.ovms_log.replace("ovms-server.log", "ovms-gui.log") \
-                      if "ovms-server.log" in cfg.ovms_log else cfg.ovms_log + ".gui"
+            gui_log = cfg.ovms_gui_log
             try:
                 log_fh = open(gui_log, "a", encoding="utf-8")
             except PermissionError:
@@ -196,6 +194,12 @@ class ServerManager:
             with self._lock:
                 self._ovms_proc = proc
             logger.info("OVMS process started (pid=%d)", proc.pid)
+            # Watch for early exit and write the exit code to the log
+            threading.Thread(
+                target=self._watch_ovms_exit,
+                args=(proc, gui_log),
+                daemon=True,
+            ).start()
             return True, f"OVMS started (pid={proc.pid})."
         except FileNotFoundError:
             msg = f"ovms.exe not found at {cfg.ovms_exe}"
@@ -204,6 +208,23 @@ class ServerManager:
         except Exception as exc:
             logger.exception("Failed to start OVMS")
             return False, str(exc)
+
+    def _watch_ovms_exit(self, proc: subprocess.Popen, log_path: str):
+        """Write a diagnostic line to the log if OVMS exits within 10 seconds."""
+        try:
+            proc.wait(timeout=10)
+            code = proc.returncode
+            hex_code = f"0x{code & 0xFFFFFFFF:08X}" if code < 0 else hex(code)
+            msg = f"\n[OVMS Manager] OVMS process exited early (code {code} / {hex_code}).\n"
+            if code in (0xC0000135, -1073741515):
+                msg += "[OVMS Manager] 0xC0000135 = DLL not found. Possible fix: install Visual C++ Redistributable (vc_redist.x64.exe) or ensure setupvars.bat ran correctly.\n"
+            try:
+                with open(log_path, "a", encoding="utf-8") as fh:
+                    fh.write(msg)
+            except Exception:
+                pass
+        except subprocess.TimeoutExpired:
+            pass  # still running after 10 s — normal
 
     def _start_proxy(self) -> tuple[bool, str]:
         with self._lock:
