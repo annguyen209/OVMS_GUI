@@ -3,8 +3,8 @@
 
 #define AppName      "OpenVINO Manager"
 #define AppVersion   "1.0.0"
-#define AppPublisher "anzdev4life"
-#define AppURL       "https://github.com/annguyen209/openvino-manager"
+#define AppPublisher "AnsCodeLab"
+#define AppURL       "https://github.com/AnsCodeLab/openvino-manager"
 #define AppExeName   "OpenVINO Manager.exe"
 #define BuildDir     "dist\OpenVINO Manager"
 
