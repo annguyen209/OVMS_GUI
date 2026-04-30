@@ -3,6 +3,7 @@ hf_search.py — HuggingFace Hub model search for OpenVINO models.
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import TypedDict, Tuple
 
 import httpx
@@ -11,8 +12,11 @@ logger = logging.getLogger(__name__)
 
 
 class ModelResult(TypedDict):
-    model_id: str
-    downloads: int
+    model_id:     str
+    downloads:    int
+    likes:        int
+    last_modified: str   # "MMM YYYY" formatted, e.g. "Apr 2025"
+    pipeline_tag: str
 
 HF_API_BASE = "https://huggingface.co/api/models"
 _TIMEOUT    = 10.0
@@ -64,17 +68,31 @@ def search_hf_models(
         data = resp.json()
         results = [
             {
-                "model_id": item.get("modelId") or item.get("id", ""),
-                "downloads": item.get("downloads", 0),
+                "model_id":     item.get("modelId") or item.get("id", ""),
+                "downloads":    item.get("downloads", 0),
+                "likes":        item.get("likes", 0),
+                "last_modified": _fmt_date(item.get("lastModified", "")),
+                "pipeline_tag": item.get("pipeline_tag", ""),
             }
             for item in data
             if item.get("modelId") or item.get("id")
         ]
         return results, ""
-    except httpx.ConnectError:
+    except (httpx.ConnectError, httpx.NetworkError):
         return [], "Could not reach HuggingFace. Check your connection."
     except httpx.TimeoutException:
         return [], "HuggingFace request timed out."
     except Exception as exc:
         logger.exception("HF search error")
         return [], f"Search error: {exc}"
+
+
+def _fmt_date(iso: str) -> str:
+    """Format ISO 8601 date string as 'MMM YYYY', e.g. 'Apr 2025'. Returns '' on failure."""
+    if not iso:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        return dt.strftime("%b %Y")
+    except Exception:
+        return ""

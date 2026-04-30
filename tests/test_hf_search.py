@@ -8,8 +8,12 @@ def test_successful_search():
     mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.json.return_value = [
-        {"modelId": "OpenVINO/Qwen2.5-7B-int4-ov", "downloads": 5000},
-        {"modelId": "OpenVINO/Llama-3-8B-int4-ov", "downloads": 3000},
+        {"modelId": "OpenVINO/Qwen2.5-7B-int4-ov", "downloads": 5000,
+         "likes": 120, "lastModified": "2025-04-01T10:00:00.000Z",
+         "pipeline_tag": "text-generation"},
+        {"modelId": "OpenVINO/Llama-3-8B-int4-ov", "downloads": 3000,
+         "likes": 80, "lastModified": "2024-12-15T08:00:00.000Z",
+         "pipeline_tag": "text-generation"},
     ]
     with patch("app.hf_search.httpx.Client") as mock_client:
         mock_client.return_value.__enter__.return_value.get.return_value = mock_resp
@@ -18,6 +22,9 @@ def test_successful_search():
     assert len(results) == 2
     assert results[0]["model_id"] == "OpenVINO/Qwen2.5-7B-int4-ov"
     assert results[0]["downloads"] == 5000
+    assert results[0]["likes"] == 120
+    assert results[0]["last_modified"] == "Apr 2025"
+    assert results[0]["pipeline_tag"] == "text-generation"
 
 
 def test_connection_error():
@@ -71,6 +78,14 @@ def test_filter_options_structure():
     for label, (tag, extra) in FILTER_OPTIONS.items():
         assert isinstance(tag, str) and tag
         assert isinstance(extra, str)
+
+
+def test_fmt_date():
+    from app.hf_search import _fmt_date
+    assert _fmt_date("2025-04-01T10:00:00.000Z") == "Apr 2025"
+    assert _fmt_date("2024-12-15T08:00:00.000Z") == "Dec 2024"
+    assert _fmt_date("") == ""
+    assert _fmt_date("invalid") == ""
 
 
 def test_offset_and_limit_passed():

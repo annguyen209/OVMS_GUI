@@ -820,7 +820,12 @@ class HFSearchPanel(ctk.CTkFrame):
         self._results_count += len(results)
 
         for r in results:
-            self._add_result_row(r["model_id"], r["downloads"])
+            self._add_result_row(
+                r["model_id"], r["downloads"],
+                likes=r.get("likes", 0),
+                last_modified=r.get("last_modified", ""),
+                pipeline_tag=r.get("pipeline_tag", ""),
+            )
 
         self._status_lbl.configure(
             text=f"{self._results_count} models found",
@@ -833,7 +838,9 @@ class HFSearchPanel(ctk.CTkFrame):
         else:
             self._load_more_btn.pack_forget()
 
-    def _add_result_row(self, model_id: str, downloads: int):
+    def _add_result_row(self, model_id: str, downloads: int,
+                        likes: int = 0, last_modified: str = "",
+                        pipeline_tag: str = ""):
         row = ctk.CTkFrame(
             self._results_frame, fg_color=theme.CARD2,
             corner_radius=6, border_width=1, border_color=theme.BORDER,
@@ -841,21 +848,16 @@ class HFSearchPanel(ctk.CTkFrame):
         row.pack(fill="x", pady=2)
         row.columnconfigure(0, weight=1)
 
-        dl_str  = f"{downloads/1000:.1f}k ↓" if downloads >= 1000 else f"{downloads} ↓"
+        # --- top line: model name + [Add] button ---
         display = model_id.split("/")[-1]
-        if len(display) > 45:
-            display = display[:42] + "…"
+        if len(display) > 52:
+            display = display[:49] + "…"
 
         ctk.CTkLabel(
             row, text=display,
             font=ctk.CTkFont(size=11, weight="bold"),
             text_color=theme.TEXT, anchor="w",
-        ).grid(row=0, column=0, sticky="w", padx=(10, 4), pady=6)
-
-        ctk.CTkLabel(
-            row, text=dl_str,
-            font=ctk.CTkFont(size=10), text_color=theme.MUTED,
-        ).grid(row=0, column=1, padx=4)
+        ).grid(row=0, column=0, sticky="w", padx=(10, 4), pady=(8, 0))
 
         is_added = model_id in self._added_ids
         add_btn  = ctk.CTkButton(
@@ -871,7 +873,26 @@ class HFSearchPanel(ctk.CTkFrame):
             state="disabled" if is_added else "normal",
             command=lambda mid=model_id, dl=downloads: self._add(mid, dl),
         )
-        add_btn.grid(row=0, column=2, padx=(4, 10), pady=4)
+        add_btn.grid(row=0, column=1, rowspan=2, padx=(4, 10), pady=4, sticky="e")
+
+        # --- bottom line: repo ID · stats ---
+        parts = []
+        org = model_id.split("/")[0] if "/" in model_id else ""
+        if org:
+            parts.append(org)
+        dl_str = f"↓ {downloads/1000:.1f}k" if downloads >= 1000 else f"↓ {downloads}"
+        parts.append(dl_str)
+        if likes:
+            parts.append(f"♥ {likes/1000:.1f}k" if likes >= 1000 else f"♥ {likes}")
+        if last_modified:
+            parts.append(last_modified)
+        if pipeline_tag:
+            parts.append(pipeline_tag.replace("-", " ").title())
+
+        ctk.CTkLabel(
+            row, text="  ·  ".join(parts),
+            font=ctk.CTkFont(size=10), text_color=theme.MUTED, anchor="w",
+        ).grid(row=1, column=0, sticky="w", padx=(10, 4), pady=(0, 6))
         self._btn_map[model_id] = add_btn
 
     def _add(self, model_id: str, downloads: int):
