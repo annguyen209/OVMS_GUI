@@ -406,6 +406,7 @@ class ModelRow(ctk.CTkFrame):
         self._dashboard_notify  = dashboard_notify_cb or (lambda *a: None)
         self._dashboard_busy    = dashboard_busy_cb   or (lambda *a: None)
         self._dl_thread: threading.Thread | None = None
+        self._cancel_event: threading.Event | None = None
 
         self._build_ui()
         self.refresh()
@@ -504,8 +505,11 @@ class ModelRow(ctk.CTkFrame):
             self._status_lbl.configure(text=f"Downloading {pct:.0f}%", text_color=theme.AMBER)
             self._progress_bar.set(pct / 100.0)
             self._progress_bar.grid(row=1, column=0, columnspan=4, padx=12, pady=(0, 8), sticky="ew")
-            self._btn.configure(text="Downloading...", state="disabled", fg_color=theme.AMBER,
-                                text_color="#ffffff")
+            self._btn.configure(
+                text="Cancel", state="normal",
+                fg_color=theme.RED, hover_color="#8c1c22",
+                text_color="#ffffff", command=self._cancel_download,
+            )
         elif is_active:
             self._status_lbl.configure(text="Active", text_color=theme.BLUE)
             self._progress_bar.grid_remove()
@@ -557,6 +561,7 @@ class ModelRow(ctk.CTkFrame):
     def _start_download(self):
         self._model.is_downloading = True
         self._model.download_progress = 0.0
+        self._cancel_event = threading.Event()
         self.refresh()
         self._notify(f"Starting download: {self._model.display_name}", theme.AMBER)
 
@@ -564,7 +569,13 @@ class ModelRow(ctk.CTkFrame):
             self._model,
             on_progress=self._on_progress,
             on_done=self._on_done,
+            cancel_event=self._cancel_event,
         )
+
+    def _cancel_download(self):
+        if self._cancel_event:
+            self._cancel_event.set()
+        self._btn.configure(state="disabled", text="Cancelling…")
 
     def _on_progress(self, model: ModelInfo, pct: float):
         # Called from background thread - schedule GUI update on main thread
@@ -574,15 +585,11 @@ class ModelRow(ctk.CTkFrame):
         def _update():
             self.refresh()
             if success:
-                self._notify(
-                    f"Download complete: {model.display_name}",
-                    theme.GREEN,
-                )
+                self._notify(f"Download complete: {model.display_name}", theme.GREEN)
+            elif "cancel" in message.lower():
+                self._notify(f"Download cancelled: {model.display_name}", theme.MUTED)
             else:
-                self._notify(
-                    f"Download failed: {model.display_name}. {message}",
-                    theme.RED,
-                )
+                self._notify(f"Download failed: {model.display_name}. {message}", theme.RED)
         self.after(0, _update)
 
     # ------------------------------------------------------------------

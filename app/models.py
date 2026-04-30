@@ -269,16 +269,18 @@ def download_model(
     model: ModelInfo,
     on_progress: ProgressCallback | None = None,
     on_done: DoneCallback | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> threading.Thread:
     """
     Start a background thread that downloads *model* from HuggingFace Hub.
     Progress is reported via *on_progress(model, percent)*.
     Completion is reported via *on_done(model, success, message)*.
+    Set cancel_event to cancel the download mid-way.
     Returns the Thread object (already started).
     """
     thread = threading.Thread(
         target=_download_worker,
-        args=(model, on_progress, on_done),
+        args=(model, on_progress, on_done, cancel_event),
         daemon=True,
         name=f"dl-{model.repo_folder_name}",
     )
@@ -290,6 +292,7 @@ def _download_worker(
     model: ModelInfo,
     on_progress: ProgressCallback | None,
     on_done: DoneCallback | None,
+    cancel_event: threading.Event | None = None,
 ):
     model.is_downloading = True
     model.download_progress = 0.0
@@ -322,6 +325,12 @@ def _download_worker(
 
         # Poll local_dir for file count while download runs in background
         while not done_event.is_set():
+            if cancel_event and cancel_event.is_set():
+                model.is_downloading = False
+                logger.info("Download cancelled: %s", model.hf_repo_id)
+                if on_done:
+                    on_done(model, False, "Download cancelled.")
+                return
             if local_dir.is_dir():
                 n = sum(1 for f in local_dir.rglob("*") if f.is_file() and f.suffix != ".lock")
                 pct = min(98.0, (n / total_files) * 100.0)
