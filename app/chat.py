@@ -100,6 +100,11 @@ def _auto_height(widget: "tk.Text") -> None:
     widget.configure(height=max(1, lines))
 
 
+def _strip_think_tags(text: str) -> str:
+    """Remove <think>...</think> reasoning blocks from model output."""
+    return _re.sub(r"<think>.*?</think>\s*", "", text, flags=_re.DOTALL).strip()
+
+
 def stream_chat(
     messages: list[dict],
     model: str,
@@ -704,10 +709,11 @@ class ChatTab(ctk.CTkFrame):
             self._status.configure(text="", text_color=theme.MUTED)
 
         if self._active_bubble:
-            raw = self._active_bubble.get_text()
-            _apply_markdown(self._active_bubble._textbox, raw)
+            raw     = self._active_bubble.get_text()
+            display = _strip_think_tags(raw)   # remove <think>...</think> from display
+            _apply_markdown(self._active_bubble._textbox, display)
             if not self._messages or self._messages[-1].get("role") != "assistant":
-                self._messages.append({"role": "assistant", "content": raw})
+                self._messages.append({"role": "assistant", "content": raw})  # keep full for context
             self._scroll_to_bottom()
         self._active_bubble = None
 
