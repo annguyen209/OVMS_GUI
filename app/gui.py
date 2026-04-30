@@ -1118,6 +1118,12 @@ class App(ctk.CTk):
         if cfg.get("auto_start_stack", False):
             self.after(2000, self._auto_start_stack)
 
+        # E2E test harness — only loaded when OVMS_E2E_TEST=1
+        import os as _os
+        if _os.environ.get("OVMS_E2E_TEST"):
+            from app.test_harness import TestHarness
+            self._test_harness = TestHarness(self)
+
     # ------------------------------------------------------------------
     # UI
     # ------------------------------------------------------------------
