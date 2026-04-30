@@ -76,18 +76,14 @@ def _remove_venv(h: TestHarness):
 
 
 def _reinstall_venv(h: TestHarness):
+    """Verify the Install button recreates the venv. Package reinstall is deferred to verify_stack."""
     from app.installer import _VENV_PY
     h.tab("Setup")
     h.setup.install("Python 3.x venv")
     h.wait(lambda: _VENV_PY.is_file(), timeout=120, label="venv file created")
-    # Wait for the venv row to finish (pip upgrade) before starting package install
-    # — prevents two concurrent pip processes on the same venv
+    # Wait for row to finish (pip upgrade inside install_venv)
     row = h.setup._find_row("Python 3.x venv")
     h.wait(lambda: not row._busy, timeout=120, label="venv row idle")
-    time.sleep(1)  # small buffer after pip upgrade completes
-    # Now packages are safe to install
-    h.setup.install_all()
-    h.setup.wait_all_ok(timeout=1800)
 
 
 def _download_model(h: TestHarness):
@@ -122,6 +118,13 @@ def _activate_model(h: TestHarness):
 
 
 def _verify_stack(h: TestHarness):
+    # If packages were removed (venv rebuild step), reinstall before starting stack
+    from app import installer as _ins
+    if not _ins.check_proxy_deps():
+        h.tab("Setup")
+        h.setup.install_all()
+        h.setup.wait_all_ok(timeout=1800)
+
     h.tab("Dashboard")
     ovms_up  = h.dashboard.ovms_status()  == "Running"
     proxy_up = h.dashboard.proxy_status() == "Running"
@@ -187,7 +190,7 @@ TESTS: list[Step] = [
     Step("fresh_state",     "Fresh state check",                  _fresh_state,     timeout=10),
     Step("install_all",     "Install All components",              _install_all,     timeout=300),
     Step("remove_venv",     "Remove Python venv",                  _remove_venv,     depends_on=["install_all"], timeout=30),
-    Step("reinstall_venv",  "Reinstall Python venv + packages",     _reinstall_venv,  depends_on=["remove_venv"], timeout=1920),
+    Step("reinstall_venv",  "Reinstall Python venv",                 _reinstall_venv,  depends_on=["remove_venv"], timeout=300),
     Step("download_model",  "Download Phi-3.5-mini (~2 GB)",       _download_model,  depends_on=["install_all"], timeout=600),
     Step("cancel_download", "Cancel download (DeepSeek-R1-1.5B)",  _cancel_download, depends_on=["install_all"], timeout=60),
     Step("activate_model",  "Activate Phi-3.5-mini",               _activate_model,  depends_on=["download_model"], timeout=90),
