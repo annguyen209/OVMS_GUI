@@ -185,11 +185,12 @@ class SetupTab(ctk.CTkFrame):
     def __init__(self, master, on_all_ok=None, on_missing=None, **kw):
         kw.setdefault("fg_color", theme.BG)
         super().__init__(master, **kw)
-        self._on_all_ok  = on_all_ok   # called when every component is installed
-        self._on_missing = on_missing   # called when checks finish and some are missing
+        self._on_all_ok       = on_all_ok
+        self._on_missing      = on_missing
         self._rows: list[_ComponentRow] = []
-        self._check_results: dict = {}  # row name -> ok bool, filled as checks complete
-        self._rows_pending = 0
+        self._check_results: dict = {}
+        self._rows_pending    = 0
+        self._missing_shown   = False  # fire on_missing only once per session
         self._build_ui()
         self.refresh()
 
@@ -354,9 +355,10 @@ class SetupTab(ctk.CTkFrame):
     def _on_row_check_done(self, name: str, ok: bool):
         """Called by each row when its check finishes."""
         self._check_results[name] = ok
-        self._rows_pending -= 1
         if self._rows_pending <= 0:
-            # All rows done — run aggregate and optionally fire on_missing
+            return  # stale callback from a row's own 500 ms self-refresh cycle
+        self._rows_pending -= 1
+        if self._rows_pending == 0:
             self._refresh_aggregate()
 
     def _refresh_aggregate(self):
@@ -382,12 +384,14 @@ class SetupTab(ctk.CTkFrame):
                                             text_color=theme.MUTED)
             self._global_status.configure(text="All components ready.",
                                           text_color=theme.GREEN)
+            self._missing_shown = False
             if self._on_all_ok:
                 self._on_all_ok()
         else:
             self._global_status.configure(text="Some components missing.",
                                           text_color=theme.AMBER)
-            if self._on_missing:
+            if self._on_missing and not self._missing_shown:
+                self._missing_shown = True
                 self._on_missing()
             self._all_badge.configure(
                 text="Some components missing — click Install to set up",
