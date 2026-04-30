@@ -235,6 +235,15 @@ def _run(app, harness: TestHarness):
 
 
 def main():
+    import tkinter.messagebox as _mb
+    # Suppress all modal dialogs in headless mode:
+    # - "Would you like to install missing components?" → No (runner handles installs)
+    # - Any other yes/no dialogs → No by default
+    _mb.askyesno   = lambda *a, **kw: False
+    _mb.showinfo   = lambda *a, **kw: None
+    _mb.showwarning = lambda *a, **kw: None
+    _mb.showerror  = lambda *a, **kw: None
+
     from app.gui import App
 
     exit_code = [1]
