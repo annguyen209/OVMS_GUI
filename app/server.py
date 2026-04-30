@@ -144,14 +144,20 @@ class ServerManager:
         for _key in ("TCL_LIBRARY", "TK_LIBRARY"):
             env.pop(_key, None)
 
-        # Guarantee the OVMS exe directory is on PATH so its DLLs are found.
-        # setupvars.bat does this too, but explicit is safer than relying on
-        # the subprocess stdout capture being 100% faithful.
-        ovms_dir = str(Path(cfg.ovms_exe).parent)
+        # Guarantee OVMS directories are on PATH — mirrors what setupvars.bat does:
+        #   PATH = OVMS_DIR ; PYTHONHOME ; PYTHONHOME\Scripts ; original PATH
+        # We do this explicitly so that parsing setupvars.bat stdout is not the
+        # single point of failure.
+        ovms_dir        = str(Path(cfg.ovms_exe).parent)
+        python_dir      = str(ovms_python_dir)
+        python_scripts  = str(ovms_python_dir / "Scripts")
+        prepend = os.pathsep.join(
+            d for d in [ovms_dir, python_dir, python_scripts]
+            if d and Path(d).exists()
+        )
         current_path = env.get("PATH", "")
-        if ovms_dir.lower() not in current_path.lower():
-            env["PATH"] = ovms_dir + os.pathsep + current_path
-            logger.info("Added OVMS dir to PATH: %s", ovms_dir)
+        env["PATH"] = prepend + os.pathsep + current_path
+        logger.info("OVMS PATH prepend: %s", prepend)
 
         # Strip PyInstaller bundle dirs from PATH so OVMS loads its own DLLs.
         if getattr(_sys, "frozen", False):
