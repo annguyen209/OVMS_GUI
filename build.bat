@@ -7,11 +7,19 @@ echo ============================================================
 echo.
 
 :: Locate Python and PyInstaller using standard system discovery.
-:: Checks PATH and the Windows py launcher — no hardcoded paths.
+:: Prefer the python on PATH (most likely to have project deps installed).
 set PYTHON=
 set PYINSTALLER=
 
-:: 1. Try py launcher (preferred on Windows — handles side-by-side installs)
+:: 1. Try python3 / python on PATH (preferred — has project packages installed)
+for %%P in (python3 python) do (
+    if not defined PYTHON (
+        where %%P >nul 2>&1 && set PYTHON=%%P
+    )
+)
+if defined PYTHON goto :found_python
+
+:: 2. Fall back to py launcher
 where py >nul 2>&1
 if %errorlevel% == 0 (
     set PYTHON=py -3
@@ -19,12 +27,6 @@ if %errorlevel% == 0 (
     goto :found_python
 )
 
-:: 2. Try python3 / python on PATH
-for %%P in (python3 python) do (
-    if not defined PYTHON (
-        where %%P >nul 2>&1 && set PYTHON=%%P
-    )
-)
 if defined PYTHON goto :found_python
 
 echo ERROR: Python 3 not found. Install from python.org or via 'winget install Python.Python.3.12'
