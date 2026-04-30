@@ -56,7 +56,7 @@ _PY3_CANDIDATES = [
 _OPENVINO_PKGS    = ["openvino", "openvino-genai"]
 _PROXY_PKGS       = ["fastapi", "uvicorn", "httpx"]
 _GUI_PKGS         = ["customtkinter", "pystray", "pillow",
-                     "huggingface_hub", "jinja2"]
+                     "huggingface_hub", "hf_xet", "jinja2"]
 
 
 # ── Detection helpers ─────────────────────────────────────────────────────
