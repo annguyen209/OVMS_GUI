@@ -177,7 +177,9 @@ class ServerManager:
                 log_fh = open(gui_log, "a", encoding="utf-8")
             except PermissionError:
                 import tempfile
-                log_fh = open(tempfile.mktemp(suffix="-ovms.log"), "w", encoding="utf-8")
+                tf = tempfile.NamedTemporaryFile(
+                    delete=False, suffix="-ovms.log", mode="a", encoding="utf-8")
+                log_fh = tf
             cmd = [
                 cfg.ovms_exe,
                 "--config_path", str(cfg.config_json),
@@ -229,7 +231,9 @@ class ServerManager:
                 log_fh = open(gui_proxy_log, "a", encoding="utf-8")
             except PermissionError:
                 import tempfile
-                log_fh = open(tempfile.mktemp(suffix="-proxy.log"), "w", encoding="utf-8")
+                tf = tempfile.NamedTemporaryFile(
+                    delete=False, suffix="-proxy.log", mode="a", encoding="utf-8")
+                log_fh = tf
 
             self._proxy_log_fh = log_fh
             proc = subprocess.Popen(

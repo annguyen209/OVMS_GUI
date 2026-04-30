@@ -376,6 +376,12 @@ class DashboardTab(ctk.CTkFrame):
             text_color=color or theme.MUTED,
         )
 
+    def set_busy(self, busy: bool):
+        self._stack_busy = busy
+        if busy:
+            self._action_btn.configure(state="disabled", text="Please wait…",
+                                       fg_color=theme.MUTED)
+
 
 # ---------------------------------------------------------------------------
 # Model row widget
@@ -388,7 +394,7 @@ class ModelRow(ctk.CTkFrame):
     """
 
     def __init__(self, master, model: ModelInfo, server: ServerManager,
-                 notify_cb, dashboard_notify_cb=None, **kwargs):
+                 notify_cb, dashboard_notify_cb=None, dashboard_busy_cb=None, **kwargs):
         kwargs.setdefault("fg_color", theme.CARD)
         kwargs.setdefault("corner_radius", 8)
         kwargs.setdefault("border_width", 1)
@@ -398,6 +404,7 @@ class ModelRow(ctk.CTkFrame):
         self._server            = server
         self._notify            = notify_cb
         self._dashboard_notify  = dashboard_notify_cb or (lambda *a: None)
+        self._dashboard_busy    = dashboard_busy_cb   or (lambda *a: None)
         self._dl_thread: threading.Thread | None = None
 
         self._build_ui()
@@ -590,6 +597,7 @@ class ModelRow(ctk.CTkFrame):
         def _worker():
             ok, msg = activate_model(self._model)
             if ok and (self._server.ovms_running or self._server.proxy_running):
+                self.after(0, lambda: self._dashboard_busy(True))
                 self.after(0, lambda: self._btn.configure(text="Stopping stack…"))
                 self.after(0, lambda: self._dashboard_notify(
                     "Restarting stack for new model…", theme.AMBER))
@@ -597,6 +605,7 @@ class ModelRow(ctk.CTkFrame):
                 time.sleep(1)
                 self.after(0, lambda: self._btn.configure(text="Starting stack…"))
                 ok2, msg2 = self._server.start_stack()
+                self.after(0, lambda: self._dashboard_busy(False))
                 if not ok2:
                     msg += f" (restart warning: {msg2})"
                     self.after(0, lambda m=msg2: self._dashboard_notify(
@@ -622,10 +631,11 @@ class ModelRow(ctk.CTkFrame):
 class ModelsTab(ctk.CTkFrame):
 
     def __init__(self, master, server: ServerManager,
-                 dashboard_notify_cb=None, **kwargs):
+                 dashboard_notify_cb=None, dashboard_busy_cb=None, **kwargs):
         super().__init__(master, fg_color="transparent", **kwargs)
         self._server = server
         self._dashboard_notify = dashboard_notify_cb or (lambda *a: None)
+        self._dashboard_busy   = dashboard_busy_cb   or (lambda *a: None)
         self._rows: list[ModelRow] = []
 
         self._build_ui()
@@ -680,6 +690,7 @@ class ModelsTab(ctk.CTkFrame):
                 server=self._server,
                 notify_cb=self._notify,
                 dashboard_notify_cb=self._dashboard_notify,
+                dashboard_busy_cb=self._dashboard_busy,
             )
             row.pack(fill="x", pady=4)
             self._rows.append(row)
@@ -769,6 +780,7 @@ class ModelsTab(ctk.CTkFrame):
             server=self._server,
             notify_cb=self._notify,
             dashboard_notify_cb=self._dashboard_notify,
+            dashboard_busy_cb=self._dashboard_busy,
         )
         row.pack(fill="x", pady=4)
         self._rows.append(row)
@@ -1178,6 +1190,7 @@ class App(ctk.CTk):
             self._tabs.tab("Models"),
             server=self._server,
             dashboard_notify_cb=self._dashboard.notify_status,
+            dashboard_busy_cb=self._dashboard.set_busy,
         )
         self._models_tab.pack(fill="both", expand=True)
 
@@ -1268,6 +1281,10 @@ class App(ctk.CTk):
                 pass
         try:
             self._dashboard.on_destroy()
+        except Exception:
+            pass
+        try:
+            self._server.stop_stack()
         except Exception:
             pass
         try:
