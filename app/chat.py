@@ -385,6 +385,7 @@ class ChatTab(ctk.CTkFrame):
         self._streaming = False
         self._active_bubble: MessageBubble | None = None
         self._ime_composing = False   # True while Windows IME is mid-composition
+        self._response_start: float = 0.0
         self._stop_event = threading.Event()
 
         self._build_ui()
@@ -592,6 +593,7 @@ class ChatTab(ctk.CTkFrame):
         self._active_bubble = self._add_bubble("assistant", "",
                                                on_retry=self._retry)
         self._streaming = True
+        self._response_start = __import__("time").time()
         self._stop_event.clear()
         self._send_btn.configure(
             text="Stop", fg_color=theme.RED, hover_color="#8c1c22",
@@ -658,6 +660,7 @@ class ChatTab(ctk.CTkFrame):
         self._active_bubble = self._add_bubble(
             "assistant", "", on_retry=self._retry)
         self._streaming = True
+        self._response_start = __import__("time").time()
         self._stop_event.clear()
         self._send_btn.configure(
             text="Stop", fg_color=theme.RED, hover_color="#8c1c22",
@@ -718,7 +721,7 @@ class ChatTab(ctk.CTkFrame):
             self._status.configure(text="Stopped.", text_color=theme.MUTED)
             self.after(2000, lambda: self._status.configure(text=""))
         else:
-            self._status.configure(text="", text_color=theme.MUTED)
+            self._show_response_stats()
 
         if self._active_bubble:
             raw     = self._active_bubble.get_text()
@@ -731,6 +734,21 @@ class ChatTab(ctk.CTkFrame):
 
     def _on_error(self, msg: str):
         self.after(0, lambda: self._show_error(msg))
+
+    def _show_response_stats(self):
+        """Show response time and estimated token count in the status bar."""
+        import time as _t
+        elapsed = _t.time() - self._response_start
+        if elapsed <= 0 or not self._active_bubble:
+            self._status.configure(text="", text_color=theme.MUTED)
+            return
+        # Estimate tokens from character count (≈ 4 chars per token)
+        raw = self._active_bubble.get_text() if self._active_bubble else ""
+        tokens = max(1, len(raw) // 4)
+        tok_per_s = tokens / elapsed
+        stats = f"{elapsed:.1f}s  ·  ~{tokens} tok  ·  ~{tok_per_s:.0f} tok/s"
+        self._status.configure(text=stats, text_color=theme.MUTED)
+        self.after(8000, lambda: self._status.configure(text=""))
 
     def _show_error(self, msg: str):
         self._streaming = False
