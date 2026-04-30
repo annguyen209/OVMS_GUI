@@ -114,6 +114,7 @@ DEFAULTS: dict = {
     "ovms_rest_port": 8000,
     "proxy_port":     8001,
     "auto_start_stack": False,
+    "ovms_device":      "GPU",
 }
 
 
@@ -243,6 +244,10 @@ class AppConfig:
     @property
     def proxy_port(self) -> int:
         return int(self._data["proxy_port"])
+
+    @property
+    def ovms_device(self) -> str:
+        return self._data.get("ovms_device", "GPU")
 
     @property
     def health_endpoint(self) -> str:
