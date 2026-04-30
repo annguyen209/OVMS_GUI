@@ -36,7 +36,7 @@ class _Tag(ctk.CTkLabel):
     }
 
     def __init__(self, master, text: str, color: str = "blue", **kw):
-        bg, fg = self._COLORS.get(color, (_TAGtheme.BLUE, theme.BLUE))
+        bg, fg = self._COLORS.get(color, ("#dbeafe", theme.BLUE))
         super().__init__(master, text=text,
                          font=ctk.CTkFont(size=10, weight="bold"),
                          fg_color=bg, text_color=fg,
