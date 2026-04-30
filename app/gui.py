@@ -640,6 +640,7 @@ class HFSearchPanel(ctk.CTkFrame):
         self._results_count = 0
         self._added_ids: set[str] = set()
         self._btn_map:   dict[str, ctk.CTkButton] = {}
+        self._search_gen:  int = 0
 
         self._build_header()
         self._build_body()
@@ -716,7 +717,14 @@ class HFSearchPanel(ctk.CTkFrame):
             text="Search for OpenVINO LLM models on HuggingFace",
             font=ctk.CTkFont(size=11), text_color=theme.MUTED,
         )
-        self._status_lbl.pack(fill="x", padx=14, pady=(0, 4))
+        self._status_lbl.pack(fill="x", padx=14, pady=(0, 2))
+
+        # Indeterminate spinner shown while fetching
+        self._spinner = ctk.CTkProgressBar(
+            self._body, mode="indeterminate", height=4,
+            fg_color=theme.CARD2, progress_color=theme.BLUE,
+        )
+        # hidden until a search is in progress
 
         # Results area
         self._results_frame = ctk.CTkScrollableFrame(
@@ -756,37 +764,48 @@ class HFSearchPanel(ctk.CTkFrame):
 
     def _search(self, reset: bool = True):
         from app.hf_search import FILTER_OPTIONS
-        query = self._search_entry.get().strip()
-        label = self._filter_menu.get()
-        pipeline_tag, extra_search = FILTER_OPTIONS.get(label, ("text-generation", ""))
-
         if reset:
+            query        = self._search_entry.get().strip()
+            label        = self._filter_menu.get()
+            pipeline_tag, extra_search = FILTER_OPTIONS.get(label, ("text-generation", ""))
             self._offset        = 0
             self._results_count = 0
             self._clear_results()
+            self._last_query = query
+            self._last_tag   = pipeline_tag
+            self._last_extra = extra_search
+        else:
+            query        = self._last_query
+            pipeline_tag = self._last_tag
+            extra_search = self._last_extra
 
-        self._last_query = query
-        self._last_tag   = pipeline_tag
-        self._last_extra = extra_search
+        self._search_gen += 1
+        gen = self._search_gen
 
         self._status_lbl.configure(text="Searching…", text_color=theme.AMBER)
+        self._spinner.pack(fill="x", padx=14, pady=(0, 4))
+        self._spinner.start()
         self._load_more_btn.pack_forget()
 
         import threading
         threading.Thread(
             target=self._fetch_worker,
-            args=(query, pipeline_tag, extra_search, self._offset),
+            args=(query, pipeline_tag, extra_search, self._offset, gen),
             daemon=True,
         ).start()
 
-    def _fetch_worker(self, query, pipeline_tag, extra_search, offset):
+    def _fetch_worker(self, query, pipeline_tag, extra_search, offset, gen):
         from app.hf_search import search_hf_models
         results, error = search_hf_models(
             query, pipeline_tag, extra_search, offset=offset, limit=20,
         )
-        self.after(0, lambda: self._on_results(results, error))
+        self.after(0, lambda: self._on_results(results, error, gen))
 
-    def _on_results(self, results: list, error: str):
+    def _on_results(self, results: list, error: str, gen: int):
+        if not self.winfo_exists() or gen != self._search_gen:
+            return
+        self._spinner.stop()
+        self._spinner.pack_forget()
         if error:
             self._status_lbl.configure(text=error, text_color=theme.RED)
             return
@@ -850,12 +869,12 @@ class HFSearchPanel(ctk.CTkFrame):
             border_color=theme.BORDER2,
             text_color=theme.GREEN if is_added else "#ffffff",
             state="disabled" if is_added else "normal",
-            command=lambda mid=model_id: self._on_add(mid),
+            command=lambda mid=model_id, dl=downloads: self._add(mid, dl),
         )
         add_btn.grid(row=0, column=2, padx=(4, 10), pady=4)
         self._btn_map[model_id] = add_btn
 
-    def _on_add(self, model_id: str):
+    def _add(self, model_id: str, downloads: int):
         from app.models import ModelInfo
         display = model_id.split("/")[-1][:40]
         model   = ModelInfo(
@@ -1054,6 +1073,8 @@ class ModelsTab(ctk.CTkFrame):
 
     def _add_from_hf(self, model: "ModelInfo"):
         """Add a model discovered via HF search to the models list."""
+        if any(r._model.hf_repo_id == model.hf_repo_id for r in self._rows):
+            return
         row = ModelRow(
             self._scroll,
             model=model,
