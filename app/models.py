@@ -174,6 +174,13 @@ CURATED_MODELS: list[ModelInfo] = [
     ),
     ModelInfo(
         hf_repo_id="OpenVINO/Phi-3.5-mini-instruct-int4-cw-ov",
+        display_name="Phi-3.5-mini (CW)",
+        size_label="~2 GB",
+        notes="CW quantization incompatible with OpenVINO 2026.1 — produces load error.",
+        broken=True,
+    ),
+    ModelInfo(
+        hf_repo_id="OpenVINO/Phi-3.5-mini-instruct-int4-ov",
         display_name="Phi-3.5-mini",
         size_label="~2 GB",
         notes="Efficient general model.",
