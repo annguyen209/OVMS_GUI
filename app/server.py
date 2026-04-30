@@ -28,6 +28,8 @@ class ServerManager:
     def __init__(self):
         self._ovms_proc:  subprocess.Popen | None = None
         self._proxy_proc: subprocess.Popen | None = None
+        self._ovms_log_fh  = None
+        self._proxy_log_fh = None
 
         # Thread-safe state
         self._lock = threading.Lock()
@@ -71,14 +73,25 @@ class ServerManager:
         return True, "OVMS and proxy started successfully."
 
     def stop_stack(self) -> tuple[bool, str]:
-        """Stop the proxy first, then OVMS.  Returns (success, message)."""
         msgs = []
         self._stop_proc(self._proxy_proc, "Proxy")
         self._proxy_proc = None
+        if self._proxy_log_fh:
+            try:
+                self._proxy_log_fh.close()
+            except Exception:
+                pass
+            self._proxy_log_fh = None
         msgs.append("Proxy stopped.")
 
         self._stop_proc(self._ovms_proc, "OVMS")
         self._ovms_proc = None
+        if self._ovms_log_fh:
+            try:
+                self._ovms_log_fh.close()
+            except Exception:
+                pass
+            self._ovms_log_fh = None
         msgs.append("OVMS stopped.")
 
         with self._lock:
@@ -172,6 +185,7 @@ class ServerManager:
                 "--rest_port", str(cfg.ovms_rest_port),
                 "--log_level", "INFO",
             ]
+            self._ovms_log_fh = log_fh
             proc = subprocess.Popen(
                 cmd, stdout=log_fh, stderr=log_fh, env=env,
                 creationflags=subprocess.CREATE_NO_WINDOW,
@@ -217,6 +231,7 @@ class ServerManager:
                 import tempfile
                 log_fh = open(tempfile.mktemp(suffix="-proxy.log"), "w", encoding="utf-8")
 
+            self._proxy_log_fh = log_fh
             proc = subprocess.Popen(
                 [cfg.python_exe, cfg.proxy_script],
                 stdout=log_fh, stderr=log_fh,
@@ -305,5 +320,10 @@ class ServerManager:
             self._proxy_running = alive
 
     def shutdown(self):
-        """Call on application exit to clean up background thread."""
         self._stop_polling.set()
+        for fh in (self._ovms_log_fh, self._proxy_log_fh):
+            if fh:
+                try:
+                    fh.close()
+                except Exception:
+                    pass
