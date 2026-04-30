@@ -328,7 +328,7 @@ class MessageBubble(ctk.CTkFrame):
         self._textbox.tag_configure("italic",      font=("Segoe UI", 13, "italic"))
         self._textbox.tag_configure("code_inline", font=("Consolas", 12), background="#f1f5f9")
         self._textbox.tag_configure("code_block",  font=("Consolas", 12),
-                                    background="#1e293b", foreground="#e2e8f0")
+                                    background=theme.CODE_BG, foreground=theme.CODE_FG)
         self._textbox.tag_configure("heading",     font=("Segoe UI", 15, "bold"))
 
         if content:
