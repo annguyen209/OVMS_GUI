@@ -135,8 +135,14 @@ class ModelInfo:
 
 
 def _has_model_files(path: Path) -> bool:
-    """Return True if *path* is a directory containing openvino_model.xml."""
-    return path.is_dir() and (path / "openvino_model.xml").is_file()
+    """Return True if path contains a complete OpenVINO model (xml + bin)."""
+    if not path.is_dir():
+        return False
+    if not (path / "openvino_model.xml").is_file():
+        return False
+    # Require at least one non-empty .bin file — xml alone means incomplete download
+    bins = list(path.glob("openvino_model*.bin"))
+    return bool(bins) and all(b.stat().st_size > 0 for b in bins)
 
 
 CURATED_MODELS: list[ModelInfo] = [
