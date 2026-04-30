@@ -589,6 +589,7 @@ class ChatTab(ctk.CTkFrame):
         )
 
     def _stop_streaming(self):
+        """Signal the worker thread to stop streaming."""
         self._stop_event.set()
         self._send_btn.configure(state="disabled", text="Stopping...")
 
