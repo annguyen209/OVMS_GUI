@@ -245,7 +245,7 @@ class SetupTab(ctk.CTkFrame):
 
         # (name, check_fn, install_fn, uninstall_fn)
         _components = [
-            ("Python 3.12 venv",
+            ("Python 3.x venv",
              installer.check_venv,
              installer.install_venv,
              installer.uninstall_venv),

@@ -42,14 +42,14 @@ def _ovms_install_dir() -> Path:
     """Computed at call time so it always reflects the current cfg.ovms_exe."""
     return Path(cfg.ovms_exe).parent
 
-# Python 3.12 candidates — prefer the Windows py launcher and PATH,
-# so any system-installed Python 3.12 is used before creating a managed venv.
-_PY312_CANDIDATES = [
-    "py -3.12",            # Windows py launcher (handles side-by-side installs)
-    "py -V:3.12",          # py launcher by exact version tag
-    "python3.12",          # common on PATH in some setups
-    "python3",             # may be 3.12 on some machines
-    "python",              # last resort; version checked below
+# Python 3.x candidates — prefer 3.12 for OVMS compatibility, accept any 3.8+.
+_PY3_CANDIDATES = [
+    "py -3.12",    # prefer 3.12 via Windows py launcher
+    "py -V:3.12",
+    "python3.12",
+    "py -3",       # any Python 3 via launcher
+    "python3",
+    "python",
 ]
 
 # Required pip packages per group
@@ -118,11 +118,11 @@ def get_status() -> dict[str, bool]:
     }
 
 
-# ── Find Python 3.12 ──────────────────────────────────────────────────────
+# ── Find Python 3.x ───────────────────────────────────────────────────────
 
-def _find_python312() -> str | None:
-    """Return a working Python 3.12 command string, or None."""
-    for candidate in _PY312_CANDIDATES:
+def _find_python3() -> str | None:
+    """Return a working Python 3.x (3.8+) command string, or None."""
+    for candidate in _PY3_CANDIDATES:
         parts = candidate.split()
         try:
             r = subprocess.run(
@@ -130,7 +130,7 @@ def _find_python312() -> str | None:
                 capture_output=True, text=True, timeout=10,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
-            if r.returncode == 0 and "3.12" in r.stdout + r.stderr:
+            if r.returncode == 0 and "3." in (r.stdout + r.stderr):
                 return candidate
         except Exception:
             continue
@@ -147,11 +147,11 @@ def _run_bg(target, args=()):
 
 def install_venv(on_log: LogCb, on_done: DoneCb):
     def _worker():
-        on_log("Looking for Python 3.12...")
-        py = _find_python312()
+        on_log("Looking for Python 3.x...")
+        py = _find_python3()
         if not py:
             on_done(False,
-                    "Python 3.12 not found. Install it from python.org or via 'uv python install 3.12'.")
+                    "Python 3.x not found. Install it from python.org or via 'uv python install 3.12'.")
             return
 
         venv_path = _VENV_DIR
