@@ -42,7 +42,7 @@ node: {{
   node_options: {{
     [type.googleapis.com/mediapipe.LLMCalculatorOptions]: {{
       models_path: "{model_path}"
-      device: "GPU"
+      device: "{device}"
       cache_size: 4
       enable_prefix_caching: true
     }}
@@ -217,7 +217,10 @@ def activate_model(model: ModelInfo) -> tuple[bool, str]:
 
     # 1. Write graph.pbtxt
     model_path_str = model.local_path.as_posix()
-    graph_content = GRAPH_TEMPLATE.format(model_path=model_path_str)
+    graph_content = GRAPH_TEMPLATE.format(
+        model_path=model_path_str,
+        device=cfg.ovms_device,
+    )
 
     try:
         graph_path.parent.mkdir(parents=True, exist_ok=True)
