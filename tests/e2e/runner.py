@@ -118,10 +118,16 @@ def _activate_model(h: TestHarness):
 
 def _verify_stack(h: TestHarness):
     h.tab("Dashboard")
-    # Already running (e.g. stack restarted during model activation) — just verify
-    if h.dashboard.ovms_status() == "Running" and h.dashboard.proxy_status() == "Running":
+    ovms_up  = h.dashboard.ovms_status()  == "Running"
+    proxy_up = h.dashboard.proxy_status() == "Running"
+    # Already fully running
+    if ovms_up and proxy_up:
         return
-    time.sleep(2)  # let any in-progress button state settle
+    # Partially running — stop first so we get a clean start
+    if ovms_up or proxy_up:
+        h.dashboard.stop_stack()
+        h.dashboard.wait_stopped(timeout=30)
+    time.sleep(2)
     h.dashboard.start_stack()
     h.dashboard.wait_running(timeout=90)
     assert h.dashboard.ovms_status()  == "Running", "OVMS not Running"
