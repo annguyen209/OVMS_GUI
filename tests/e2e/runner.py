@@ -83,9 +83,9 @@ def _reinstall_venv(h: TestHarness):
         lambda: "Installed" in h.setup.status("Python 3.x venv"),
         timeout=120, label="venv reinstalled",
     )
-    # Packages (fastapi, httpx, etc.) were lost when venv was removed — reinstall all
+    # Packages (fastapi, httpx, openvino, etc.) were lost when venv was removed — reinstall all
     h.setup.install_all()
-    h.setup.wait_all_ok(timeout=300)
+    h.setup.wait_all_ok(timeout=600)
 
 
 def _download_model(h: TestHarness):
@@ -189,7 +189,7 @@ TESTS: list[Step] = [
     Step("download_model",  "Download Phi-3.5-mini (~2 GB)",       _download_model,  depends_on=["install_all"], timeout=600),
     Step("cancel_download", "Cancel download (DeepSeek-R1-1.5B)",  _cancel_download, depends_on=["install_all"], timeout=60),
     Step("activate_model",  "Activate Phi-3.5-mini",               _activate_model,  depends_on=["download_model"], timeout=90),
-    Step("verify_stack",    "Dashboard: verify stack running",     _verify_stack,    depends_on=["activate_model"], timeout=60),
+    Step("verify_stack",    "Dashboard: verify stack running",     _verify_stack,    depends_on=["activate_model", "reinstall_venv"], timeout=90),
     Step("chat_send",       "Chat: send message",                  _chat_send,       depends_on=["verify_stack"], timeout=120),
     Step("chat_stop",       "Chat: stop streaming",                _chat_stop,       depends_on=["verify_stack"], timeout=30),
     Step("settings_device", "Settings: change device",             _settings_device, timeout=10),
