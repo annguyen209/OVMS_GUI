@@ -891,6 +891,48 @@ class SettingsTab(ctk.CTkFrame):
                 )
                 btn.grid(row=row_idx, column=2, padx=(0, 8), pady=6)
 
+        # ---- Inference device ----
+        device_row_idx = len(self._FIELDS) + 1
+
+        ctk.CTkFrame(scroll, height=1, fg_color=theme.BORDER).grid(
+            row=device_row_idx - 1, column=0, columnspan=3,
+            sticky="ew", padx=8, pady=(8, 4),
+        )
+
+        ctk.CTkLabel(
+            scroll,
+            text="Inference Device",
+            font=ctk.CTkFont(size=12),
+            text_color=theme.TEXT2,
+            anchor="w",
+            width=200,
+        ).grid(row=device_row_idx, column=0, sticky="w", padx=(8, 12), pady=6)
+
+        self._device_menu = ctk.CTkOptionMenu(
+            scroll,
+            values=["GPU", "CPU", "NPU", "AUTO"],
+            font=ctk.CTkFont(size=12),
+            fg_color=theme.CARD2,
+            button_color=theme.BORDER2,
+            button_hover_color=theme.BORDER,
+            text_color=theme.TEXT,
+            dropdown_fg_color=theme.CARD,
+            dropdown_hover_color=theme.CARD2,
+            dropdown_text_color=theme.TEXT,
+            command=lambda v: cfg.set("ovms_device", v),
+        )
+        self._device_menu.set(cfg.ovms_device)
+        self._device_menu.grid(row=device_row_idx, column=1, sticky="w", padx=(0, 8), pady=6)
+
+        ctk.CTkLabel(
+            scroll,
+            text="Takes effect the next time you activate a model.",
+            font=ctk.CTkFont(size=11),
+            text_color=theme.MUTED,
+            anchor="w",
+        ).grid(row=device_row_idx + 1, column=0, columnspan=2,
+               sticky="w", padx=(8, 8), pady=(0, 8))
+
         # Windows startup section
         ctk.CTkLabel(
             self, text="Windows Startup",
