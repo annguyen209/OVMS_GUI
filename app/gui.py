@@ -597,9 +597,12 @@ class ModelRow(ctk.CTkFrame):
                 time.sleep(1)
                 self.after(0, lambda: self._btn.configure(text="Starting stack…"))
                 ok2, msg2 = self._server.start_stack()
-                self.after(0, lambda: self._dashboard_notify("", theme.MUTED))
                 if not ok2:
                     msg += f" (restart warning: {msg2})"
+                    self.after(0, lambda m=msg2: self._dashboard_notify(
+                        f"Stack restart failed: {m}", theme.RED))
+                else:
+                    self.after(0, lambda: self._dashboard_notify("", theme.MUTED))
 
             self.after(0, lambda: self._on_activate_done(ok, msg))
 
