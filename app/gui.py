@@ -619,6 +619,271 @@ class ModelRow(ctk.CTkFrame):
 
 
 # ---------------------------------------------------------------------------
+# HuggingFace Model Search Panel
+# ---------------------------------------------------------------------------
+
+class HFSearchPanel(ctk.CTkFrame):
+    """Collapsible panel for searching HuggingFace OpenVINO models."""
+
+    def __init__(self, master, models_tab, **kwargs):
+        kwargs.setdefault("fg_color",      theme.CARD)
+        kwargs.setdefault("corner_radius", 8)
+        kwargs.setdefault("border_width",  1)
+        kwargs.setdefault("border_color",  theme.BORDER)
+        super().__init__(master, **kwargs)
+        self._models_tab    = models_tab
+        self._expanded      = False
+        self._offset        = 0
+        self._last_query    = ""
+        self._last_tag      = "text-generation"
+        self._last_extra    = ""
+        self._results_count = 0
+        self._added_ids: set[str] = set()
+        self._btn_map:   dict[str, ctk.CTkButton] = {}
+
+        self._build_header()
+        self._build_body()
+        self._body.pack_forget()  # collapsed by default
+
+    # ------------------------------------------------------------------
+    # Build
+    # ------------------------------------------------------------------
+
+    def _build_header(self):
+        hdr = ctk.CTkFrame(self, fg_color="transparent")
+        hdr.pack(fill="x", padx=14, pady=10)
+
+        ctk.CTkLabel(
+            hdr, text="Search HuggingFace Models",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=theme.TEXT2,
+        ).pack(side="left")
+
+        self._toggle_btn = ctk.CTkButton(
+            hdr, text="Expand ▾", width=90, height=28,
+            font=ctk.CTkFont(size=11),
+            fg_color=theme.CARD2, hover_color=theme.BORDER,
+            border_width=1, border_color=theme.BORDER2,
+            text_color=theme.TEXT2,
+            command=self._toggle,
+        )
+        self._toggle_btn.pack(side="right")
+
+    def _build_body(self):
+        self._body = ctk.CTkFrame(self, fg_color="transparent")
+
+        # Search controls row
+        search_row = ctk.CTkFrame(self._body, fg_color="transparent")
+        search_row.pack(fill="x", padx=14, pady=(0, 6))
+
+        self._search_entry = ctk.CTkEntry(
+            search_row,
+            font=ctk.CTkFont(size=12),
+            placeholder_text="e.g. Qwen, Llama, Mistral…",
+            height=30,
+        )
+        self._search_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self._search_entry.bind("<Return>", lambda e: self._search())
+
+        from app.hf_search import FILTER_OPTIONS
+        self._filter_labels = list(FILTER_OPTIONS.keys())
+        self._filter_menu = ctk.CTkOptionMenu(
+            search_row,
+            values=self._filter_labels,
+            font=ctk.CTkFont(size=11),
+            width=140, height=30,
+            fg_color=theme.CARD2,
+            button_color=theme.BORDER2,
+            button_hover_color=theme.BORDER,
+            text_color=theme.TEXT,
+            dropdown_fg_color=theme.CARD,
+            dropdown_hover_color=theme.CARD2,
+            dropdown_text_color=theme.TEXT,
+        )
+        self._filter_menu.set(self._filter_labels[0])
+        self._filter_menu.pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            search_row, text="Search", width=80, height=30,
+            font=ctk.CTkFont(size=12),
+            fg_color=theme.BLUE, hover_color=theme.BLUE_H,
+            command=self._search,
+        ).pack(side="left")
+
+        # Status label
+        self._status_lbl = ctk.CTkLabel(
+            self._body,
+            text="Search for OpenVINO LLM models on HuggingFace",
+            font=ctk.CTkFont(size=11), text_color=theme.MUTED,
+        )
+        self._status_lbl.pack(fill="x", padx=14, pady=(0, 4))
+
+        # Results area
+        self._results_frame = ctk.CTkScrollableFrame(
+            self._body, fg_color="transparent", height=200,
+        )
+        self._results_frame.pack(fill="x", padx=14, pady=(0, 4))
+
+        # Load-more button (hidden until results overflow one page)
+        self._load_more_btn = ctk.CTkButton(
+            self._body, text="", width=160, height=28,
+            font=ctk.CTkFont(size=11),
+            fg_color=theme.CARD2, hover_color=theme.BORDER,
+            border_width=1, border_color=theme.BORDER2,
+            text_color=theme.TEXT2,
+            command=self._load_more,
+        )
+        self._load_more_btn.pack(pady=(0, 10))
+        self._load_more_btn.pack_forget()
+
+    # ------------------------------------------------------------------
+    # Toggle
+    # ------------------------------------------------------------------
+
+    def _toggle(self):
+        if self._expanded:
+            self._body.pack_forget()
+            self._toggle_btn.configure(text="Expand ▾")
+            self._expanded = False
+        else:
+            self._body.pack(fill="x")
+            self._toggle_btn.configure(text="Close ▴")
+            self._expanded = True
+
+    # ------------------------------------------------------------------
+    # Search
+    # ------------------------------------------------------------------
+
+    def _search(self, reset: bool = True):
+        from app.hf_search import FILTER_OPTIONS
+        query = self._search_entry.get().strip()
+        label = self._filter_menu.get()
+        pipeline_tag, extra_search = FILTER_OPTIONS.get(label, ("text-generation", ""))
+
+        if reset:
+            self._offset        = 0
+            self._results_count = 0
+            self._clear_results()
+
+        self._last_query = query
+        self._last_tag   = pipeline_tag
+        self._last_extra = extra_search
+
+        self._status_lbl.configure(text="Searching…", text_color=theme.AMBER)
+        self._load_more_btn.pack_forget()
+
+        import threading
+        threading.Thread(
+            target=self._fetch_worker,
+            args=(query, pipeline_tag, extra_search, self._offset),
+            daemon=True,
+        ).start()
+
+    def _fetch_worker(self, query, pipeline_tag, extra_search, offset):
+        from app.hf_search import search_hf_models
+        results, error = search_hf_models(
+            query, pipeline_tag, extra_search, offset=offset, limit=20,
+        )
+        self.after(0, lambda: self._on_results(results, error))
+
+    def _on_results(self, results: list, error: str):
+        if error:
+            self._status_lbl.configure(text=error, text_color=theme.RED)
+            return
+        if not results:
+            self._status_lbl.configure(
+                text="No models found. Try a different query.",
+                text_color=theme.MUTED,
+            )
+            return
+
+        self._offset        += len(results)
+        self._results_count += len(results)
+
+        for r in results:
+            self._add_result_row(r["model_id"], r["downloads"])
+
+        self._status_lbl.configure(
+            text=f"{self._results_count} models found",
+            text_color=theme.MUTED,
+        )
+        if len(results) == 20:
+            self._load_more_btn.configure(
+                text=f"Load more ({self._results_count} shown)")
+            self._load_more_btn.pack(pady=(0, 10))
+        else:
+            self._load_more_btn.pack_forget()
+
+    def _add_result_row(self, model_id: str, downloads: int):
+        row = ctk.CTkFrame(
+            self._results_frame, fg_color=theme.CARD2,
+            corner_radius=6, border_width=1, border_color=theme.BORDER,
+        )
+        row.pack(fill="x", pady=2)
+        row.columnconfigure(0, weight=1)
+
+        dl_str  = f"{downloads/1000:.1f}k ↓" if downloads >= 1000 else f"{downloads} ↓"
+        display = model_id.split("/")[-1]
+        if len(display) > 45:
+            display = display[:42] + "…"
+
+        ctk.CTkLabel(
+            row, text=display,
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=theme.TEXT, anchor="w",
+        ).grid(row=0, column=0, sticky="w", padx=(10, 4), pady=6)
+
+        ctk.CTkLabel(
+            row, text=dl_str,
+            font=ctk.CTkFont(size=10), text_color=theme.MUTED,
+        ).grid(row=0, column=1, padx=4)
+
+        is_added = model_id in self._added_ids
+        add_btn  = ctk.CTkButton(
+            row,
+            text="Added" if is_added else "Add",
+            width=60, height=26,
+            font=ctk.CTkFont(size=11),
+            fg_color=theme.CARD2 if is_added else theme.BLUE,
+            hover_color=theme.BORDER if is_added else theme.BLUE_H,
+            border_width=1 if is_added else 0,
+            border_color=theme.BORDER2,
+            text_color=theme.GREEN if is_added else "#ffffff",
+            state="disabled" if is_added else "normal",
+            command=lambda mid=model_id: self._on_add(mid),
+        )
+        add_btn.grid(row=0, column=2, padx=(4, 10), pady=4)
+        self._btn_map[model_id] = add_btn
+
+    def _on_add(self, model_id: str):
+        from app.models import ModelInfo
+        display = model_id.split("/")[-1][:40]
+        model   = ModelInfo(
+            hf_repo_id=model_id,
+            display_name=display,
+            size_label="?",
+            notes="",
+        )
+        self._models_tab._add_from_hf(model)
+        self._added_ids.add(model_id)
+        btn = self._btn_map.get(model_id)
+        if btn:
+            btn.configure(
+                text="Added", state="disabled",
+                fg_color=theme.CARD2, border_width=1,
+                border_color=theme.BORDER2, text_color=theme.GREEN,
+            )
+
+    def _load_more(self):
+        self._search(reset=False)
+
+    def _clear_results(self):
+        for w in self._results_frame.winfo_children():
+            w.destroy()
+        self._btn_map.clear()
+
+
+# ---------------------------------------------------------------------------
 # Models Tab
 # ---------------------------------------------------------------------------
 
@@ -691,6 +956,10 @@ class ModelsTab(ctk.CTkFrame):
 
         # Custom model input panel
         self._build_custom_panel()
+
+        # HuggingFace search panel (collapsed by default)
+        self._hf_panel = HFSearchPanel(self, models_tab=self)
+        self._hf_panel.pack(fill="x", padx=16, pady=(0, 12))
 
     def _build_custom_panel(self):
         panel = ctk.CTkFrame(self, fg_color=theme.CARD2, corner_radius=6,
@@ -782,6 +1051,20 @@ class ModelsTab(ctk.CTkFrame):
         self._custom_repo.delete(0, "end")
         self._custom_name.delete(0, "end")
         self._notify(f"Added: {display}", theme.GREEN)
+
+    def _add_from_hf(self, model: "ModelInfo"):
+        """Add a model discovered via HF search to the models list."""
+        row = ModelRow(
+            self._scroll,
+            model=model,
+            server=self._server,
+            notify_cb=self._notify,
+            dashboard_notify_cb=self._dashboard_notify,
+            dashboard_busy_cb=self._dashboard_busy,
+        )
+        row.pack(fill="x", pady=4)
+        self._rows.append(row)
+        self._notify(f"Added: {model.display_name}", theme.GREEN)
 
     def _notify(self, message: str, color: str = theme.MUTED):
         self._notif_bar.configure(text=message, text_color=color)
