@@ -109,6 +109,7 @@ class _ComponentRow(ctk.CTkFrame):
                                 text_color=theme.MUTED, text="Done")
             # Show Remove button if an uninstall function was provided
             if self._uninstall_fn:
+                self._remove_btn.configure(text="Remove", state="normal")
                 self._remove_btn.pack(side="right", padx=(4, 4), pady=10,
                                       before=self._btn)
         else:

@@ -173,6 +173,7 @@ def install_venv(on_log: LogCb, on_done: DoneCb):
                 capture_output=True, timeout=60,
                 creationflags=subprocess.CREATE_NO_WINDOW,
             )
+            on_log("Python venv ready.")
             on_done(True, "Python venv ready.")
         except Exception as exc:
             on_done(False, str(exc))
