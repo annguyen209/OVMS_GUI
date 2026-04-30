@@ -1003,103 +1003,10 @@ class ModelsTab(ctk.CTkFrame):
             row.pack(fill="x", pady=4)
             self._rows.append(row)
 
-        # Custom model input panel
-        self._build_custom_panel()
-
-        # HuggingFace search panel (collapsed by default)
+        # HuggingFace search panel
         self._hf_panel = HFSearchPanel(self, models_tab=self)
         self._hf_panel.pack(fill="x", padx=16, pady=(0, 12))
 
-    def _build_custom_panel(self):
-        panel = ctk.CTkFrame(self, fg_color=theme.CARD2, corner_radius=6,
-                             border_width=1, border_color=theme.BORDER)
-        panel.pack(fill="x", padx=16, pady=(0, 12))
-
-        # Header
-        hdr = ctk.CTkFrame(panel, fg_color="transparent")
-        hdr.pack(fill="x", padx=14, pady=(10, 6))
-        ctk.CTkLabel(hdr, text="Custom Model",
-                     font=ctk.CTkFont(size=12, weight="bold"),
-                     text_color=theme.TEXT2).pack(side="left")
-        ctk.CTkLabel(hdr,
-                     text="HuggingFace repo ID or local folder path. "
-                          "Must be an OpenVINO IR model (contains openvino_model.xml).",
-                     font=ctk.CTkFont(size=10), text_color=theme.MUTED).pack(side="left", padx=(10, 0))
-
-        # Input row
-        row = ctk.CTkFrame(panel, fg_color="transparent")
-        row.pack(fill="x", padx=14, pady=(0, 10))
-
-        ctk.CTkLabel(row, text="Repo / Path:",
-                     font=ctk.CTkFont(size=11), text_color=theme.MUTED,
-                     width=90, anchor="w").pack(side="left")
-
-        self._custom_repo = ctk.CTkEntry(
-            row, font=ctk.CTkFont(family="Consolas", size=12),
-            placeholder_text="e.g.  OpenVINO/Phi-4-mini-instruct-int4-ov  or  C:\\models\\my-model",
-            height=30,
-        )
-        self._custom_repo.pack(side="left", fill="x", expand=True, padx=(6, 8))
-
-        ctk.CTkLabel(row, text="Name:",
-                     font=ctk.CTkFont(size=11), text_color=theme.MUTED,
-                     width=48, anchor="w").pack(side="left")
-
-        self._custom_name = ctk.CTkEntry(
-            row, font=ctk.CTkFont(size=12),
-            placeholder_text="Display name",
-            width=160, height=30,
-        )
-        self._custom_name.pack(side="left", padx=(4, 8))
-
-        ctk.CTkButton(
-            row, text="Add", width=70, height=30,
-            font=ctk.CTkFont(size=12),
-            fg_color=theme.BLUE, hover_color=theme.BLUE_H,
-            command=self._add_custom_model,
-        ).pack(side="left")
-
-    def _add_custom_model(self):
-        from pathlib import Path as _Path
-        repo = self._custom_repo.get().strip()
-        name = self._custom_name.get().strip()
-
-        if not repo:
-            self._notify("Enter a HuggingFace repo ID or local path.", theme.RED)
-            return
-
-        # Determine if local path or HF repo
-        local = _Path(repo)
-        if local.is_dir():
-            hf_id = repo          # treat as local — no HF download needed
-            size  = "local"
-        else:
-            hf_id = repo
-            size  = "?"
-
-        display = name or repo.split("/")[-1]
-
-        model = ModelInfo(
-            hf_repo_id=repo,
-            display_name=display,
-            size_label=size,
-            notes="Custom model",
-        )
-
-        row = ModelRow(
-            self._scroll,
-            model=model,
-            server=self._server,
-            notify_cb=self._notify,
-            dashboard_notify_cb=self._dashboard_notify,
-            dashboard_busy_cb=self._dashboard_busy,
-        )
-        row.pack(fill="x", pady=4)
-        self._rows.append(row)
-
-        self._custom_repo.delete(0, "end")
-        self._custom_name.delete(0, "end")
-        self._notify(f"Added: {display}", theme.GREEN)
 
     def _add_from_hf(self, model: "ModelInfo"):
         """Add a model discovered via HF search to the models list."""
