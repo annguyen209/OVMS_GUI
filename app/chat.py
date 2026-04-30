@@ -127,6 +127,7 @@ def stream_chat(
     use_tools: bool = False,
     on_tool_call: Callable[[str, str], None] | None = None,
     on_messages_update: Callable[[list[dict]], None] | None = None,
+    stop_event: "threading.Event | None" = None,
 ):
     """
     Send a chat request, optionally with tool use (agentic loop).
@@ -147,6 +148,11 @@ def stream_chat(
                 if use_tools:
                     # Agentic loop — up to 5 rounds
                     for _ in range(5):
+                        if stop_event and stop_event.is_set():
+                            if on_messages_update:
+                                on_messages_update(msgs)
+                            on_done()
+                            return
                         payload = {
                             "model": model,
                             "messages": msgs,
@@ -239,6 +245,8 @@ def stream_chat(
                         on_error(f"HTTP {resp.status_code}: {resp.read().decode()[:200]}")
                         return
                     for line in resp.iter_lines():
+                        if stop_event and stop_event.is_set():
+                            break
                         if not line.startswith("data: "):
                             continue
                         data = line[6:].strip()
@@ -377,6 +385,7 @@ class ChatTab(ctk.CTkFrame):
         self._streaming = False
         self._active_bubble: MessageBubble | None = None
         self._ime_composing = False   # True while Windows IME is mid-composition
+        self._stop_event = threading.Event()
 
         self._build_ui()
         self.bind("<Configure>", self._on_resize)
@@ -559,7 +568,11 @@ class ChatTab(ctk.CTkFrame):
         self._active_bubble = self._add_bubble("assistant", "",
                                                on_retry=self._retry)
         self._streaming = True
-        self._send_btn.configure(state="disabled", text="...")
+        self._stop_event.clear()
+        self._send_btn.configure(
+            text="Stop", fg_color=_RED, hover_color="#8c1c22",
+            state="normal", command=self._stop_streaming,
+        )
         status_text = "Thinking (web tools on)..." if use_tools else "Generating..."
         self._status.configure(text=status_text, text_color=_AMBER)
 
@@ -572,7 +585,12 @@ class ChatTab(ctk.CTkFrame):
             use_tools=use_tools,
             on_tool_call=self._on_tool_call,
             on_messages_update=self._on_messages_update,
+            stop_event=self._stop_event,
         )
+
+    def _stop_streaming(self):
+        self._stop_event.set()
+        self._send_btn.configure(state="disabled", text="Stopping...")
 
     def _scroll_to_bottom(self):
         def _do():
@@ -615,7 +633,11 @@ class ChatTab(ctk.CTkFrame):
         self._active_bubble = self._add_bubble(
             "assistant", "", on_retry=self._retry)
         self._streaming = True
-        self._send_btn.configure(state="disabled", text="...")
+        self._stop_event.clear()
+        self._send_btn.configure(
+            text="Stop", fg_color=_RED, hover_color="#8c1c22",
+            state="normal", command=self._stop_streaming,
+        )
         self._status.configure(text="Retrying...", text_color=_AMBER)
 
         stream_chat(
@@ -627,6 +649,7 @@ class ChatTab(ctk.CTkFrame):
             use_tools=self._tools_var.get(),
             on_tool_call=self._on_tool_call,
             on_messages_update=self._on_messages_update,
+            stop_event=self._stop_event,
         )
 
     # ------------------------------------------------------------------
@@ -661,8 +684,16 @@ class ChatTab(ctk.CTkFrame):
 
     def _finish(self):
         self._streaming = False
-        self._send_btn.configure(state="normal", text="Send")
-        self._status.configure(text="", text_color=_MUTED)
+        self._send_btn.configure(
+            state="normal", text="Send",
+            fg_color=_BLUE, hover_color=_BLUE_H,
+            command=self._send,
+        )
+        if self._stop_event.is_set():
+            self._status.configure(text="Stopped.", text_color=_MUTED)
+            self.after(2000, lambda: self._status.configure(text=""))
+        else:
+            self._status.configure(text="", text_color=_MUTED)
 
         if self._active_bubble:
             raw = self._active_bubble.get_text()
@@ -677,7 +708,11 @@ class ChatTab(ctk.CTkFrame):
 
     def _show_error(self, msg: str):
         self._streaming = False
-        self._send_btn.configure(state="normal", text="Send")
+        self._send_btn.configure(
+            state="normal", text="Send",
+            fg_color=_BLUE, hover_color=_BLUE_H,
+            command=self._send,
+        )
         self._status.configure(text=f"Error: {msg}", text_color=_RED)
         if self._active_bubble:
             self._active_bubble.append(f"\n[Error: {msg}]")
