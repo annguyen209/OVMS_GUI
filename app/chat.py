@@ -101,8 +101,20 @@ def _auto_height(widget: "tk.Text") -> None:
 
 
 def _strip_think_tags(text: str) -> str:
-    """Remove <think>...</think> reasoning blocks from model output."""
-    return _re.sub(r"<think>.*?</think>\s*", "", text, flags=_re.DOTALL).strip()
+    """Remove reasoning blocks from model output.
+
+    Handles three forms:
+      <think>...</think>   — complete block
+      <think>...           — unclosed opening tag (streaming cut off)
+      ...</think>          — no opening tag (model omitted it)
+    """
+    # Complete blocks
+    text = _re.sub(r"<think>.*?</think>\s*", "", text, flags=_re.DOTALL)
+    # Orphaned closing tag — strip everything up to and including </think>
+    text = _re.sub(r"^.*?</think>\s*", "", text, flags=_re.DOTALL)
+    # Orphaned opening tag — strip from <think> to end (unfinished reasoning)
+    text = _re.sub(r"<think>.*$", "", text, flags=_re.DOTALL)
+    return text.strip()
 
 
 def stream_chat(
