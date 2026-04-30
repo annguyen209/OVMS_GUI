@@ -339,7 +339,18 @@ class MessageBubble(ctk.CTkFrame):
             pady=4,
             height=1,
         )
-        self._textbox.pack(fill="x", padx=0, pady=(0, 10))
+        self._textbox.pack(fill="x", padx=0, pady=(0, 4))
+
+        # Stats line — response time + token count (assistant only)
+        self._stats_lbl: ctk.CTkLabel | None = None
+        if role == "assistant":
+            self._stats_lbl = ctk.CTkLabel(
+                self, text="",
+                font=ctk.CTkFont(size=10),
+                text_color=theme.MUTED,
+                anchor="e",
+            )
+            self._stats_lbl.pack(fill="x", padx=14, pady=(0, 6))
 
         self._textbox.tag_configure("bold",        font=("Segoe UI", 13, "bold"))
         self._textbox.tag_configure("italic",      font=("Segoe UI", 13, "italic"))
@@ -369,6 +380,15 @@ class MessageBubble(ctk.CTkFrame):
     def set_wrap(self, pixel_width: int):
         chars = max(40, (pixel_width - 120) // 8)
         self._textbox.configure(width=chars)
+
+    def set_stats(self, elapsed: float, tokens: int):
+        """Show response time and token estimate on the bubble (assistant only)."""
+        if self._stats_lbl is None:
+            return
+        tok_per_s = tokens / elapsed if elapsed > 0 else 0
+        self._stats_lbl.configure(
+            text=f"{elapsed:.1f}s  ·  ~{tokens} tok  ·  ~{tok_per_s:.0f} tok/s"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -736,19 +756,16 @@ class ChatTab(ctk.CTkFrame):
         self.after(0, lambda: self._show_error(msg))
 
     def _show_response_stats(self):
-        """Show response time and estimated token count in the status bar."""
+        """Show response time and token estimate on the active bubble."""
         import time as _t
         elapsed = _t.time() - self._response_start
         if elapsed <= 0 or not self._active_bubble:
             self._status.configure(text="", text_color=theme.MUTED)
             return
-        # Estimate tokens from character count (≈ 4 chars per token)
-        raw = self._active_bubble.get_text() if self._active_bubble else ""
+        raw    = self._active_bubble.get_text()
         tokens = max(1, len(raw) // 4)
-        tok_per_s = tokens / elapsed
-        stats = f"{elapsed:.1f}s  ·  ~{tokens} tok  ·  ~{tok_per_s:.0f} tok/s"
-        self._status.configure(text=stats, text_color=theme.MUTED)
-        self.after(8000, lambda: self._status.configure(text=""))
+        self._active_bubble.set_stats(elapsed, tokens)
+        self._status.configure(text="", text_color=theme.MUTED)
 
     def _show_error(self, msg: str):
         self._streaming = False
