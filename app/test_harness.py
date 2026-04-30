@@ -15,26 +15,13 @@ class TestTimeout(Exception):
         self.elapsed = elapsed
 
 
-class TestHarness:
+# ---------------------------------------------------------------------------
+# Base class with thread-safe helpers (shared by all harnesses)
+# ---------------------------------------------------------------------------
+
+class _HarnessBase:
     def __init__(self, app):
-        self._app      = app
-        self.setup     = SetupHarness(app)
-        self.models    = ModelsHarness(app)
-        self.dashboard = DashboardHarness(app)
-        self.chat      = ChatHarness(app)
-        self.settings  = SettingsHarness(app)
-
-    # ------------------------------------------------------------------
-    # Navigation
-    # ------------------------------------------------------------------
-
-    def tab(self, name: str) -> "TestHarness":
-        self._invoke(lambda: self._app._tabs.set(name))
-        return self
-
-    # ------------------------------------------------------------------
-    # Thread-safe helpers
-    # ------------------------------------------------------------------
+        self._app = app
 
     def _invoke(self, fn: Callable) -> None:
         """Run fn on the tkinter main thread and block until done."""
@@ -65,7 +52,7 @@ class TestHarness:
             elif time.time() - start < timeout:
                 self._app.after(poll_ms, _check)
             else:
-                done.set()  # timed out — caller checks result[0]
+                done.set()  # timed out
 
         self._app.after(0, _check)
         done.wait(timeout + 2)
@@ -75,23 +62,38 @@ class TestHarness:
 
 
 # ---------------------------------------------------------------------------
-# Per-tab harnesses
+# Top-level harness
 # ---------------------------------------------------------------------------
 
-class SetupHarness:
+class TestHarness(_HarnessBase):
     def __init__(self, app):
-        self._app = app
-        self._h   = TestHarness(app)
+        super().__init__(app)
+        self.setup     = SetupHarness(app)
+        self.models    = ModelsHarness(app)
+        self.dashboard = DashboardHarness(app)
+        self.chat      = ChatHarness(app)
+        self.settings  = SettingsHarness(app)
+
+    def tab(self, name: str) -> "TestHarness":
+        self._invoke(lambda: self._app._tabs.set(name))
+        return self
+
+
+# ---------------------------------------------------------------------------
+# Per-tab harnesses — all inherit _invoke / wait from _HarnessBase
+# ---------------------------------------------------------------------------
+
+class SetupHarness(_HarnessBase):
 
     @property
     def _tab(self):
         return self._app._setup_tab
 
     def install_all(self) -> None:
-        self._h._invoke(lambda: self._tab._install_all_btn.invoke())
+        self._invoke(lambda: self._tab._install_all_btn.invoke())
 
     def wait_all_ok(self, timeout: float = 120) -> None:
-        self._h.wait(
+        self.wait(
             lambda: "All components installed" in self._tab._all_badge.cget("text"),
             timeout=timeout, label="all components installed",
         )
@@ -103,28 +105,25 @@ class SetupHarness:
         raise ValueError(f"Component row not found: {name!r}")
 
     def remove(self, component_name: str) -> None:
-        """Remove component, auto-confirming the confirmation dialog."""
+        """Remove component, auto-confirming the dialog."""
         import tkinter.messagebox as _mb
         orig = _mb.askyesno
         _mb.askyesno = lambda *a, **kw: True
         try:
             row = self._find_row(component_name)
-            self._h._invoke(row._uninstall)
+            self._invoke(row._uninstall)
         finally:
             _mb.askyesno = orig
 
     def install(self, component_name: str) -> None:
         row = self._find_row(component_name)
-        self._h._invoke(row._btn.invoke)
+        self._invoke(row._btn.invoke)
 
     def status(self, component_name: str) -> str:
         return self._find_row(component_name)._status_lbl.cget("text")
 
 
-class ModelsHarness:
-    def __init__(self, app):
-        self._app = app
-        self._h   = TestHarness(app)
+class ModelsHarness(_HarnessBase):
 
     @property
     def _tab(self):
@@ -137,49 +136,46 @@ class ModelsHarness:
         raise ValueError(f"Model row not found: {display_name!r}")
 
     def download(self, display_name: str) -> None:
-        self._h._invoke(self._find_row(display_name)._btn.invoke)
+        self._invoke(self._find_row(display_name)._btn.invoke)
 
     def cancel(self, display_name: str) -> None:
-        self._h._invoke(self._find_row(display_name)._cancel_download)
+        self._invoke(self._find_row(display_name)._cancel_download)
 
     def activate(self, display_name: str) -> None:
-        self._h._invoke(self._find_row(display_name)._btn.invoke)
+        self._invoke(self._find_row(display_name)._btn.invoke)
 
     def state(self, display_name: str) -> str:
         return self._find_row(display_name)._status_lbl.cget("text")
 
     def wait_downloaded(self, display_name: str, timeout: float = 600) -> None:
-        self._h.wait(
+        self.wait(
             lambda: self.state(display_name) == "Downloaded",
             timeout=timeout, poll_ms=2000, label=f"{display_name} downloaded",
         )
 
     def wait_active(self, display_name: str, timeout: float = 90) -> None:
-        self._h.wait(
+        self.wait(
             lambda: self.state(display_name) == "Active",
             timeout=timeout, poll_ms=1000, label=f"{display_name} active",
         )
 
 
-class DashboardHarness:
-    def __init__(self, app):
-        self._app = app
-        self._h   = TestHarness(app)
+class DashboardHarness(_HarnessBase):
 
     def start_stack(self) -> None:
-        self._h._invoke(self._app._dashboard._action_btn.invoke)
+        self._invoke(self._app._dashboard._action_btn.invoke)
 
     def stop_stack(self) -> None:
-        self._h._invoke(self._app._dashboard._action_btn.invoke)
+        self._invoke(self._app._dashboard._action_btn.invoke)
 
     def wait_running(self, timeout: float = 60) -> None:
-        self._h.wait(
+        self.wait(
             lambda: self._app._server.ovms_running and self._app._server.proxy_running,
             timeout=timeout, poll_ms=1000, label="stack running",
         )
 
     def wait_stopped(self, timeout: float = 30) -> None:
-        self._h.wait(
+        self.wait(
             lambda: not self._app._server.ovms_running and not self._app._server.proxy_running,
             timeout=timeout, poll_ms=500, label="stack stopped",
         )
@@ -191,33 +187,30 @@ class DashboardHarness:
         return "Running" if self._app._server.proxy_running else "Stopped"
 
 
-class ChatHarness:
-    def __init__(self, app):
-        self._app = app
-        self._h   = TestHarness(app)
+class ChatHarness(_HarnessBase):
 
     @property
     def _tab(self):
         return self._app._chat_tab
 
     def set_model(self, name: str) -> None:
-        self._h._invoke(lambda: self._tab._model_combo.set(name))
+        self._invoke(lambda: self._tab._model_combo.set(name))
 
     def send(self, text: str) -> None:
         def _do():
             self._tab._input.delete("1.0", "end")
             self._tab._input.insert("1.0", text)
             self._tab._send()
-        self._h._invoke(_do)
+        self._invoke(_do)
 
     def wait_response(self, timeout: float = 120) -> None:
-        self._h.wait(
+        self.wait(
             lambda: not self._tab._streaming,
             timeout=timeout, poll_ms=500, label="chat response",
         )
 
     def stop(self) -> None:
-        self._h._invoke(self._tab._stop_streaming)
+        self._invoke(self._tab._stop_streaming)
 
     def last_response(self) -> str:
         for bubble in reversed(self._tab._bubbles):
@@ -226,13 +219,10 @@ class ChatHarness:
         return ""
 
     def clear(self) -> None:
-        self._h._invoke(self._tab._clear)
+        self._invoke(self._tab._clear)
 
 
-class SettingsHarness:
-    def __init__(self, app):
-        self._app = app
-        self._h   = TestHarness(app)
+class SettingsHarness(_HarnessBase):
 
     @property
     def _tab(self):
@@ -243,10 +233,10 @@ class SettingsHarness:
         def _do():
             self._tab._device_menu.set(device)
             cfg.set("ovms_device", device)
-        self._h._invoke(_do)
+        self._invoke(_do)
 
     def get_device(self) -> str:
         return self._tab._device_menu.get()
 
     def save(self) -> None:
-        self._h._invoke(self._tab._save)
+        self._invoke(self._tab._save)
