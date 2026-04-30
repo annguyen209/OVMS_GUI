@@ -3,11 +3,16 @@ hf_search.py — HuggingFace Hub model search for OpenVINO models.
 """
 
 import logging
-from typing import Tuple
+from typing import TypedDict, Tuple
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+class ModelResult(TypedDict):
+    model_id: str
+    downloads: int
 
 HF_API_BASE = "https://huggingface.co/api/models"
 _TIMEOUT    = 10.0
@@ -26,12 +31,12 @@ def search_hf_models(
     extra_search: str = "",
     offset: int = 0,
     limit: int = 20,
-) -> Tuple[list[dict], str]:
+) -> Tuple[list[ModelResult], str]:
     """
     Search HuggingFace Hub for OpenVINO LLM models.
 
     Returns (results, error_message).
-    results: list of {"model_id": str, "downloads": int} dicts.
+    results: list[ModelResult].
     error_message: empty string on success.
 
     Runs synchronously — caller must use a background thread.

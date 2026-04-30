@@ -83,6 +83,7 @@ def test_offset_and_limit_passed():
         get_mock.return_value = mock_resp
         search_hf_models("test", offset=20, limit=10)
     call_kwargs = get_mock.call_args
-    params = call_kwargs[1].get("params") or call_kwargs[0][1]
+    # Support both positional and keyword call styles
+    params = call_kwargs.kwargs.get("params") or (call_kwargs.args[1] if len(call_kwargs.args) > 1 else {})
     assert params["offset"] == 20
     assert params["limit"] == 10
