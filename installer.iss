@@ -184,8 +184,11 @@ begin
       Log2('Keeping config: ' + ConfigDir);
 
     if not UninstKeepModels then
-      RemoveDirIfExists(WorkspaceDir)
-    else
+    begin
+      RemoveDirIfExists(WorkspaceDir);
+      // Also remove HuggingFace hub cache (model weights stored here)
+      RemoveDirIfExists(GetEnv('USERPROFILE') + '\.cache\huggingface\hub');
+    end else
       Log2('Keeping workspace: ' + WorkspaceDir);
 
     TryDeleteFile(GetEnv('USERPROFILE') + '\ovms-gui.log');

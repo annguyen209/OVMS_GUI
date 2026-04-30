@@ -104,15 +104,15 @@ def _strip_think_tags(text: str) -> str:
     """Remove reasoning blocks from model output.
 
     Handles three forms:
-      <think>...</think>   — complete block
-      <think>...           — unclosed opening tag (streaming cut off)
-      ...</think>          — no opening tag (model omitted it)
+      <think>...</think>   - complete block
+      <think>...           - unclosed opening tag (streaming cut off)
+      ...</think>          - no opening tag (model omitted it)
     """
     # Complete blocks
     text = _re.sub(r"<think>.*?</think>\s*", "", text, flags=_re.DOTALL)
-    # Orphaned closing tag — strip everything up to and including </think>
+    # Orphaned closing tag - strip everything up to and including </think>
     text = _re.sub(r"^.*?</think>\s*", "", text, flags=_re.DOTALL)
-    # Orphaned opening tag — strip from <think> to end (unfinished reasoning)
+    # Orphaned opening tag - strip from <think> to end (unfinished reasoning)
     text = _re.sub(r"<think>.*$", "", text, flags=_re.DOTALL)
     return text.strip()
 
@@ -146,7 +146,7 @@ def stream_chat(
                 msgs = list(messages)
 
                 if use_tools:
-                    # Agentic loop — up to 5 rounds
+                    # Agentic loop - up to 5 rounds
                     for _ in range(5):
                         if stop_event and stop_event.is_set():
                             if on_messages_update:
@@ -186,7 +186,7 @@ def stream_chat(
                                      finish, len(tool_calls), text_tc)
 
                         if not tool_calls and not text_tc:
-                            # No tool call — deliver the content as final answer
+                            # No tool call - deliver the content as final answer
                             if content:
                                 on_chunk(content)
                             # Sync full message history (includes tool turns) back to caller
@@ -323,7 +323,7 @@ class MessageBubble(ctk.CTkFrame):
                       command=self._copy,
                       ).pack(side="right", padx=(0, 2))
 
-        # Content — tk.Text for markdown rendering
+        # Content - tk.Text for markdown rendering
         self._textbox = tk.Text(
             self,
             font=("Segoe UI", 13),
@@ -341,7 +341,7 @@ class MessageBubble(ctk.CTkFrame):
         )
         self._textbox.pack(fill="x", padx=0, pady=(0, 4))
 
-        # Stats line — response time + token count (assistant only)
+        # Stats line - response time + token count (assistant only)
         self._stats_lbl: ctk.CTkLabel | None = None
         if role == "assistant":
             self._stats_lbl = ctk.CTkLabel(
@@ -496,7 +496,7 @@ class ChatTab(ctk.CTkFrame):
         input_row.pack(fill="x", side="bottom")
         input_row.pack_propagate(False)
 
-        # Plain tk.Text — full IME support, full Unicode, no event interception
+        # Plain tk.Text - full IME support, full Unicode, no event interception
         self._input = tk.Text(
             input_row,
             font=("Segoe UI", 12),
@@ -571,7 +571,7 @@ class ChatTab(ctk.CTkFrame):
             self._model_combo.set("")
             self._send_btn.configure(state="disabled")
             self._status.configure(
-                text="No model active — go to Models tab to download and activate one.",
+                text="No model active - go to Models tab to download and activate one.",
                 text_color=theme.AMBER,
             )
 
@@ -598,7 +598,7 @@ class ChatTab(ctk.CTkFrame):
         if self._ime_composing:
             return          # let IME use Enter to confirm the composition
         self._send()
-        # Do NOT return "break" — let the default handler run so Unikey/EVKey
+        # Do NOT return "break" - let the default handler run so Unikey/EVKey
         # can flush any pending composed character. _send() clears the box,
         # so the newline the default handler inserts is immediately deleted.
 
@@ -799,13 +799,13 @@ class ChatTab(ctk.CTkFrame):
     def _friendly_error(msg: str) -> str:
         m = msg.lower()
         if "connection refused" in m or "connect" in m and "error" in m:
-            return "Cannot connect — start the stack on the Dashboard first."
+            return "Cannot connect - start the stack on the Dashboard first."
         if "422" in m:
             return "The model rejected the request. Check the model is loaded."
         if "404" in m:
             return "Model not found. Activate a model on the Models tab."
         if "500" in m:
-            return "Server error — the model may have crashed. Check the log."
+            return "Server error - the model may have crashed. Check the log."
         if "timeout" in m or "timed out" in m:
             return "Request timed out. The model may still be loading."
         return msg

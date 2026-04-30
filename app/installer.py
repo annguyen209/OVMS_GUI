@@ -1,5 +1,5 @@
 """
-installer.py — Component detection and auto-installation.
+installer.py - Component detection and auto-installation.
 
 Checks for and installs:
   1. Python 3.12 venv + pip
@@ -8,8 +8,8 @@ Checks for and installs:
   4. OVMS binary (ovms.exe) from GitHub releases
 
 All install functions accept:
-  on_log(line: str)          — called for each log line (thread-safe via .after)
-  on_done(ok: bool, msg: str)— called on completion
+  on_log(line: str)          - called for each log line (thread-safe via .after)
+  on_done(ok: bool, msg: str)- called on completion
 """
 
 import os
@@ -26,7 +26,7 @@ from app.config import cfg
 LogCb  = Callable[[str], None]
 DoneCb = Callable[[bool, str], None]
 
-# Managed venv — always at this fixed location regardless of cfg.python_exe
+# Managed venv - always at this fixed location regardless of cfg.python_exe
 import os as _os
 _VENV_DIR = Path(_os.environ.get("LOCALAPPDATA") or _os.path.expanduser("~")) / "OVMS Manager" / "env"
 _VENV_PY  = _VENV_DIR / "Scripts" / "python.exe"
@@ -42,7 +42,7 @@ def _ovms_install_dir() -> Path:
     """Computed at call time so it always reflects the current cfg.ovms_exe."""
     return Path(cfg.ovms_exe).parent
 
-# Python 3.x candidates — prefer 3.12 for OVMS compatibility, accept any 3.8+.
+# Python 3.x candidates - prefer 3.12 for OVMS compatibility, accept any 3.8+.
 _PY3_CANDIDATES = [
     "py -3.12",    # prefer 3.12 via Windows py launcher
     "py -V:3.12",

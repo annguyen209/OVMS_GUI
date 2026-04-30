@@ -1,5 +1,5 @@
 """
-config.py — Persistent JSON-backed application settings.
+config.py - Persistent JSON-backed application settings.
 
 All path/port constants previously scattered across modules are centralised here.
 The singleton `cfg` is imported by other modules and read at call-time, so
@@ -19,7 +19,7 @@ import subprocess as _sp
 
 _appdata = _os.environ.get("LOCALAPPDATA") or _os.path.expanduser("~")
 
-# All app data lives under %LOCALAPPDATA%\OVMS Manager\ — no username hardcoded.
+# All app data lives under %LOCALAPPDATA%\OVMS Manager\ - no username hardcoded.
 _base = Path(_appdata) / "OVMS Manager"
 
 CONFIG_FILE = _base / "config.json"
@@ -29,7 +29,7 @@ CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
 def _detect_python() -> str:
     """
     Find the best available Python 3.x executable using standard system
-    discovery — no hardcoded paths.
+    discovery - no hardcoded paths.
 
     Priority:
       1. System Python on PATH that has the required packages already
@@ -38,7 +38,7 @@ def _detect_python() -> str:
     """
     import shutil, subprocess, sys
 
-    # When running as a PyInstaller bundle, sys.executable is the app exe —
+    # When running as a PyInstaller bundle, sys.executable is the app exe -
     # don't use it; look for an external Python instead.
     if not getattr(sys, "frozen", False) and sys.executable:
         return sys.executable  # dev mode: use the current interpreter
@@ -58,7 +58,7 @@ def _detect_python() -> str:
             except Exception:
                 pass
 
-    # Windows py launcher — handles side-by-side installs cleanly
+    # Windows py launcher - handles side-by-side installs cleanly
     py = shutil.which("py")
     if py:
         try:
@@ -85,7 +85,7 @@ def _detect_python() -> str:
 
 def _detect_ovms() -> str:
     """
-    Find ovms.exe — checks in priority order:
+    Find ovms.exe - checks in priority order:
       1. App-managed path (%LOCALAPPDATA%\\OVMS Manager\\ovms\\)
       2. ovms.exe on system PATH  (user added it globally)
     Falls back to the managed path so Setup tab can install it there.
@@ -99,7 +99,7 @@ def _detect_ovms() -> str:
     if found:
         return found
 
-    return str(managed)  # fallback — Setup tab will install here
+    return str(managed)  # fallback - Setup tab will install here
 
 
 DEFAULTS: dict = {
@@ -139,7 +139,7 @@ class AppConfig:
         if not Path(saved_py).is_file():
             detected = _detect_python()
             if detected != saved_py:
-                logger.info("python_exe '%s' not found — updated to '%s'", saved_py, detected)
+                logger.info("python_exe '%s' not found - updated to '%s'", saved_py, detected)
                 self._data["python_exe"] = detected
                 changed = True
 
@@ -148,7 +148,7 @@ class AppConfig:
         if not Path(saved_ovms).is_file():
             detected_ovms = _detect_ovms()
             if detected_ovms != saved_ovms:
-                logger.info("ovms_exe '%s' not found — updated to '%s'", saved_ovms, detected_ovms)
+                logger.info("ovms_exe '%s' not found - updated to '%s'", saved_ovms, detected_ovms)
                 self._data["ovms_exe"] = detected_ovms
                 self._data["setupvars"] = str(Path(detected_ovms).parent / "setupvars.bat")
                 changed = True
@@ -168,7 +168,7 @@ class AppConfig:
                 self._data.update(saved)
                 logger.debug("Config loaded from %s", CONFIG_FILE)
             except Exception as exc:
-                logger.warning("Could not load config: %s — using defaults", exc)
+                logger.warning("Could not load config: %s - using defaults", exc)
 
     def save(self):
         try:
@@ -262,5 +262,5 @@ class AppConfig:
         return f"http://localhost:{self.ovms_rest_port}/v3/models"
 
 
-# Module-level singleton — import this everywhere
+# Module-level singleton - import this everywhere
 cfg = AppConfig()

@@ -1,5 +1,5 @@
 """
-server.py — OVMS and proxy process management.
+server.py - OVMS and proxy process management.
 
 Responsibilities:
 - Start / stop OVMS (ovms.exe) and the proxy (ovms-proxy.py) as subprocesses.
@@ -106,7 +106,7 @@ class ServerManager:
 
     def _build_ovms_env(self) -> dict:
         import sys as _sys
-        # Normalise all keys to uppercase — Windows env vars are case-insensitive
+        # Normalise all keys to uppercase - Windows env vars are case-insensitive
         # but Python dicts are not.  os.environ may store "Path" not "PATH", which
         # would make every subsequent env.get("PATH") return "".
         env = {k.upper(): v for k, v in os.environ.items()}
@@ -144,7 +144,7 @@ class ServerManager:
         for _key in ("TCL_LIBRARY", "TK_LIBRARY"):
             env.pop(_key, None)
 
-        # Guarantee OVMS directories are on PATH — mirrors what setupvars.bat does:
+        # Guarantee OVMS directories are on PATH - mirrors what setupvars.bat does:
         #   PATH = OVMS_DIR ; PYTHONHOME ; PYTHONHOME\Scripts ; original PATH
         # We do this explicitly so that parsing setupvars.bat stdout is not the
         # single point of failure.
@@ -192,7 +192,7 @@ class ServerManager:
                     _json.dumps({"model_config_list": [], "mediapipe_config_list": []}, indent=2),
                     encoding="utf-8",
                 )
-                logger.info("Created empty config.json — activate a model to load one")
+                logger.info("Created empty config.json - activate a model to load one")
             gui_log = cfg.ovms_gui_log
             try:
                 log_fh = open(gui_log, "a", encoding="utf-8")
@@ -247,7 +247,7 @@ class ServerManager:
             except Exception:
                 pass
         except subprocess.TimeoutExpired:
-            pass  # still running after 10 s — normal
+            pass  # still running after 10 s - normal
 
     def _start_proxy(self) -> tuple[bool, str]:
         with self._lock:
@@ -349,12 +349,12 @@ class ServerManager:
         with self._lock:
             proc = self._proxy_proc
         if proc and proc.poll() is not None:
-            # Our process exited — clear the reference
+            # Our process exited - clear the reference
             with self._lock:
                 self._proxy_proc = None
             proc = None
 
-        # 2. Network check — covers both managed and external processes
+        # 2. Network check - covers both managed and external processes
         try:
             with httpx.Client(timeout=2.0) as client:
                 resp = client.get(

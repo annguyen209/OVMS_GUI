@@ -40,7 +40,7 @@ def _draw_icon(size: int) -> Image.Image:
         fill=_BLUE,
     )
 
-    # "OV" monogram — pick font size relative to icon size
+    # "OV" monogram - pick font size relative to icon size
     fs = max(6, int(size * 0.38))
     try:
         font = ImageFont.truetype("segoeui.ttf", fs)

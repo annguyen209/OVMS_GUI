@@ -1,5 +1,5 @@
 """
-test_harness.py — Programmatic test interface for OpenVINO Manager.
+test_harness.py - Programmatic test interface for OpenVINO Manager.
 Loaded only when OVMS_E2E_TEST=1 is set.
 """
 
@@ -60,7 +60,7 @@ class _HarnessBase:
                 self._app.after(poll_ms, _check)
             # else: timer guard will fire
 
-        # Hard-deadline timer — fires even when the event loop is backed up
+        # Hard-deadline timer - fires even when the event loop is backed up
         timer = threading.Timer(timeout + 0.5, done.set)
         timer.daemon = True
         timer.start()
@@ -93,7 +93,7 @@ class TestHarness(_HarnessBase):
 
 
 # ---------------------------------------------------------------------------
-# Per-tab harnesses — all inherit _invoke / wait from _HarnessBase
+# Per-tab harnesses - all inherit _invoke / wait from _HarnessBase
 # ---------------------------------------------------------------------------
 
 class SetupHarness(_HarnessBase):

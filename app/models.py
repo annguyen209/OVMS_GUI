@@ -1,5 +1,5 @@
 """
-models.py — Model catalog, download logic, and OVMS config writing.
+models.py - Model catalog, download logic, and OVMS config writing.
 
 Responsibilities:
 - Define the curated list of OpenVINO coding models.
@@ -78,7 +78,7 @@ class ModelInfo:
 
     @property
     def repo_folder_name(self) -> str:
-        """Last component of the HF repo ID — used as the default local folder name."""
+        """Last component of the HF repo ID - used as the default local folder name."""
         return self.hf_repo_id.split("/")[-1]
 
     @property
@@ -140,7 +140,7 @@ def _has_model_files(path: Path) -> bool:
         return False
     if not (path / "openvino_model.xml").is_file():
         return False
-    # Require at least one non-empty .bin file — xml alone means incomplete download
+    # Require at least one non-empty .bin file - xml alone means incomplete download
     bins = list(path.glob("openvino_model*.bin"))
     return bool(bins) and all(b.stat().st_size > 0 for b in bins)
 
@@ -339,7 +339,7 @@ def _download_worker(
         # Wipe the entire download staging directory from any previous
         # interrupted attempt so snapshot_download starts completely fresh.
         # On Windows, lock files from a crashed session can't be deleted while
-        # held open — shutil.rmtree with ignore_errors handles that gracefully.
+        # held open - shutil.rmtree with ignore_errors handles that gracefully.
         import shutil as _shutil
         dl_cache = local_dir / ".cache" / "huggingface" / "download"
         if dl_cache.is_dir():
@@ -369,7 +369,7 @@ def _download_worker(
         threading.Thread(target=_dl, daemon=True, name=f"hf-{model.repo_folder_name}").start()
 
         # Poll local_dir for downloaded bytes while download runs in background.
-        # Include .incomplete staging files — they contain actual data being
+        # Include .incomplete staging files - they contain actual data being
         # written by snapshot_download before the atomic rename to final paths.
         while not done_event.is_set():
             if cancel_event and cancel_event.is_set():

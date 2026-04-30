@@ -1,5 +1,5 @@
 """
-hf_search.py — HuggingFace Hub model search for OpenVINO models.
+hf_search.py - HuggingFace Hub model search for OpenVINO models.
 """
 
 import logging
@@ -43,7 +43,7 @@ def search_hf_models(
     results: list[ModelResult].
     error_message: empty string on success.
 
-    Runs synchronously — caller must use a background thread.
+    Runs synchronously - caller must use a background thread.
     """
     search = query
     if extra_search and extra_search.lower() not in query.lower():

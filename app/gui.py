@@ -187,7 +187,7 @@ class HardwareBar(tk.Frame):
         )
         self._placeholder.pack(side="left")
 
-        # Detect after mainloop starts — log parse is instant
+        # Detect after mainloop starts - log parse is instant
         self.after(200, lambda: threading.Thread(
             target=self._detect, daemon=True).start())
 
@@ -209,8 +209,8 @@ class HardwareBar(tk.Frame):
         }
         _token_subtitles = {
             "CPU": "General-purpose inference",
-            "GPU": "Arc iGPU — shared RAM as VRAM",
-            "NPU": "Intel AI Boost — low power",
+            "GPU": "Arc iGPU - shared RAM as VRAM",
+            "NPU": "Intel AI Boost - low power",
         }
 
         for i, (token, name, desc) in enumerate(devices):
@@ -270,7 +270,7 @@ class DashboardTab(ctk.CTkFrame):
         _hw_lbl.grid(row=1, column=0, columnspan=3,
                      padx=2, pady=(10, 2), sticky="w")
 
-        # Hardware bar spans all 3 columns — guaranteed same width
+        # Hardware bar spans all 3 columns - guaranteed same width
         HardwareBar(cards).grid(row=2, column=0, columnspan=3,
                                 padx=0, pady=0, sticky="nsew")
 
@@ -489,7 +489,7 @@ class ModelRow(ctk.CTkFrame):
         )
         self._btn.grid(row=0, column=3, sticky="ew", padx=(4, 4), pady=10)
 
-        # Delete button — shown only when model is downloaded
+        # Delete button - shown only when model is downloaded
         self._del_btn = ctk.CTkButton(
             self,
             text="🗑",
@@ -1115,9 +1115,9 @@ def _startup_command() -> str:
     """Command written to the registry for auto-start."""
     import sys
     if getattr(sys, "frozen", False):
-        # Running as installed bundle — point directly at the exe
+        # Running as installed bundle - point directly at the exe
         return f'"{sys.executable}"'
-    # Dev mode — launch via pythonw so there's no console window
+    # Dev mode - launch via pythonw so there's no console window
     pythonw = sys.executable.replace("python.exe", "pythonw.exe")
     main_py = str(Path(__file__).parent.parent / "main.py")
     return f'"{pythonw}" "{main_py}"'
@@ -1412,7 +1412,7 @@ class App(ctk.CTk):
         if cfg.get("auto_start_stack", False):
             self.after(2000, self._auto_start_stack)
 
-        # E2E test harness — only loaded when OVMS_E2E_TEST=1
+        # E2E test harness - only loaded when OVMS_E2E_TEST=1
         import os as _os
         if _os.environ.get("OVMS_E2E_TEST"):
             from app.test_harness import TestHarness

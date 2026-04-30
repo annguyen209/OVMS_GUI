@@ -57,7 +57,7 @@ class _ComponentRow(ctk.CTkFrame):
                                         anchor="e")
         self._status_lbl.pack(side="left", padx=8)
 
-        # Remove button — only shown when component is installed
+        # Remove button - only shown when component is installed
         self._remove_btn = ctk.CTkButton(
             self, text="Remove", width=80, height=30,
             font=ctk.CTkFont(size=12),
@@ -395,6 +395,6 @@ class SetupTab(ctk.CTkFrame):
                 self._missing_shown = True
                 self._on_missing()
             self._all_badge.configure(
-                text="Some components missing — click Install to set up",
+                text="Some components missing - click Install to set up",
                 fg_color="#fff7ed", text_color=theme.AMBER,
             )

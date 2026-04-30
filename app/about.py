@@ -32,12 +32,12 @@ def _detect_devices() -> list[tuple[str, str, str]]:
     Returns list of (device_token, full_name, description).
 
     Fast path: parse the OVMS log (the server already printed the device
-    list on startup). Instant file read — no OpenVINO cold-start delay.
+    list on startup). Instant file read - no OpenVINO cold-start delay.
 
     Slow fallback: direct openvino import for full device names when the
     log is unavailable (takes 15-30 s on first call, use sparingly).
     """
-    # 1. Parse OVMS log — instant
+    # 1. Parse OVMS log - instant
     try:
         log = Path(cfg.ovms_log)
         if log.is_file():
@@ -63,7 +63,7 @@ def _detect_devices() -> list[tuple[str, str, str]]:
     except Exception:
         pass
 
-    # 2. Subprocess via managed venv Python — works in installed exe
+    # 2. Subprocess via managed venv Python - works in installed exe
     try:
         import subprocess
         candidates = [
@@ -94,7 +94,7 @@ def _detect_devices() -> list[tuple[str, str, str]]:
     except Exception:
         pass
 
-    # 3. Direct openvino import — works in dev environment
+    # 3. Direct openvino import - works in dev environment
     try:
         import openvino as ov
         core = ov.Core()
@@ -247,7 +247,7 @@ class AboutTab(ctk.CTkFrame):
         steps = [
             ("1", f"OVMS loads the model onto your device and listens on port {cfg.ovms_rest_port}.",  theme.BLUE),
             ("2", f"A thin proxy on port {cfg.proxy_port} clamps max_tokens so requests never exceed the model's context window.", theme.BLUE),
-            ("3", f"Your IDE extension (Continue.dev or OpenCode) connects to localhost:{cfg.proxy_port}/v3 — just like it would to the OpenAI API.", theme.GREEN),
+            ("3", f"Your IDE extension (Continue.dev or OpenCode) connects to localhost:{cfg.proxy_port}/v3 - just like it would to the OpenAI API.", theme.GREEN),
         ]
         for num, text, color in steps:
             row = ctk.CTkFrame(card, fg_color=theme.CARD2, corner_radius=6,
