@@ -144,6 +144,15 @@ class ServerManager:
         for _key in ("TCL_LIBRARY", "TK_LIBRARY"):
             env.pop(_key, None)
 
+        # Guarantee the OVMS exe directory is on PATH so its DLLs are found.
+        # setupvars.bat does this too, but explicit is safer than relying on
+        # the subprocess stdout capture being 100% faithful.
+        ovms_dir = str(Path(cfg.ovms_exe).parent)
+        current_path = env.get("PATH", "")
+        if ovms_dir.lower() not in current_path.lower():
+            env["PATH"] = ovms_dir + os.pathsep + current_path
+            logger.info("Added OVMS dir to PATH: %s", ovms_dir)
+
         # Strip PyInstaller bundle dirs from PATH so OVMS loads its own DLLs.
         if getattr(_sys, "frozen", False):
             bundle_root = os.path.dirname(_sys.executable)
