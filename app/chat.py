@@ -6,6 +6,7 @@ Connects to http://localhost:{proxy_port}/v3/chat/completions with streaming.
 
 import json
 import logging
+import re as _re
 import threading
 import tkinter as tk
 from typing import Callable
@@ -45,32 +46,75 @@ _CHAT_BG   = "#f3f4f6"   # gray-100
 _BASE = lambda: f"http://localhost:{cfg.proxy_port}/v3/chat/completions"
 
 
-def _strip_markdown(text: str) -> str:
-    """Convert markdown to clean readable text."""
-    import re
-    # Code blocks → keep content, remove fences
-    text = re.sub(r"```[a-zA-Z]*\n?(.*?)\n?```", r"\1", text, flags=re.DOTALL)
-    # Inline code
-    text = re.sub(r"`([^`]+)`", r"\1", text)
-    # Headers
-    text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
-    # Bold / italic
-    text = re.sub(r"\*\*\*(.+?)\*\*\*", r"\1", text)
-    text = re.sub(r"\*\*(.+?)\*\*",   r"\1", text)
-    text = re.sub(r"\*(.+?)\*",       r"\1", text)
-    text = re.sub(r"___(.+?)___",     r"\1", text)
-    text = re.sub(r"__(.+?)__",       r"\1", text)
-    text = re.sub(r"_(.+?)_",         r"\1", text)
-    # Links — keep label
-    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
-    # Bullet points → dash
-    text = re.sub(r"^[\*\-\+]\s+", "- ", text, flags=re.MULTILINE)
-    # Numbered lists — keep as-is
-    # Horizontal rules
-    text = re.sub(r"^[-*_]{3,}\s*$", "", text, flags=re.MULTILINE)
-    # Collapse 3+ blank lines to 2
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()
+def _apply_markdown(widget: "tk.Text", text: str) -> None:
+    """
+    Clear *widget* and re-insert *text* with markdown formatting tags applied.
+    Expected tags on widget: bold, italic, code_inline, code_block, heading
+    """
+    widget.configure(state="normal")
+    widget.delete("1.0", "end")
+
+    parts = _re.split(r"```(?:[a-zA-Z]*\n?)?(.*?)```", text, flags=_re.DOTALL)
+
+    for idx, part in enumerate(parts):
+        if idx % 2 == 1:
+            widget.insert("end", part.strip(), "code_block")
+            widget.insert("end", "\n")
+        else:
+            lines = part.split("\n")
+            for line_no, line in enumerate(lines):
+                if line_no > 0:
+                    widget.insert("end", "\n")
+                _insert_inline(widget, line)
+
+    widget.configure(state="disabled")
+    _auto_height(widget)
+
+
+def _insert_inline(widget: "tk.Text", line: str) -> None:
+    """Insert one line with inline markdown tags."""
+    m = _re.match(r"^(#{1,3})\s+(.+)$", line)
+    if m:
+        widget.insert("end", m.group(2), "heading")
+        return
+
+    pattern = _re.compile(
+        r"`([^`]+)`"
+        r"|\*\*\*(.+?)\*\*\*"
+        r"|\*\*(.+?)\*\*"
+        r"|___(.+?)___"
+        r"|\*(.+?)\*"
+        r"|__(.+?)__"
+        r"|_([^_]+)_"
+    )
+    pos = 0
+    for match in pattern.finditer(line):
+        if match.start() > pos:
+            widget.insert("end", line[pos:match.start()])
+        g = match.groups()
+        if g[0] is not None:
+            widget.insert("end", g[0], "code_inline")
+        elif g[1] is not None:
+            widget.insert("end", g[1], ("bold", "italic"))
+        elif g[2] is not None:
+            widget.insert("end", g[2], "bold")
+        elif g[3] is not None:
+            widget.insert("end", g[3], "bold")
+        elif g[4] is not None:
+            widget.insert("end", g[4], "italic")
+        elif g[5] is not None:
+            widget.insert("end", g[5], "bold")
+        elif g[6] is not None:
+            widget.insert("end", g[6], "italic")
+        pos = match.end()
+    if pos < len(line):
+        widget.insert("end", line[pos:])
+
+
+def _auto_height(widget: "tk.Text") -> None:
+    """Resize tk.Text to fit its content."""
+    lines = int(widget.index("end-1c").split(".")[0])
+    widget.configure(height=max(1, lines))
 
 
 def stream_chat(
@@ -271,33 +315,52 @@ class MessageBubble(ctk.CTkFrame):
                       command=self._copy,
                       ).pack(side="right", padx=(0, 2))
 
-        # Content
-        self._text_var = tk.StringVar(value=content)
-        self._label = ctk.CTkLabel(
+        # Content — tk.Text for markdown rendering
+        self._textbox = tk.Text(
             self,
-            textvariable=self._text_var,
-            font=ctk.CTkFont(family="Segoe UI", size=13),
-            text_color=_TEXT,
-            anchor="w",
-            justify="left",
-            wraplength=700,
+            font=("Segoe UI", 13),
+            bg=self._BG_COLORS.get(role, "#ffffff"),
+            fg="#111827",
+            relief="flat",
+            borderwidth=0,
+            highlightthickness=0,
+            wrap="word",
+            state="disabled",
+            cursor="arrow",
+            padx=14,
+            pady=4,
+            height=1,
         )
-        self._label.pack(anchor="w", padx=14, pady=(0, 10), fill="x")
+        self._textbox.pack(fill="x", padx=0, pady=(0, 10))
+
+        self._textbox.tag_configure("bold",        font=("Segoe UI", 13, "bold"))
+        self._textbox.tag_configure("italic",      font=("Segoe UI", 13, "italic"))
+        self._textbox.tag_configure("code_inline", font=("Consolas", 12), background="#f1f5f9")
+        self._textbox.tag_configure("code_block",  font=("Consolas", 12),
+                                    background="#1e293b", foreground="#e2e8f0")
+        self._textbox.tag_configure("heading",     font=("Segoe UI", 15, "bold"))
+
+        if content:
+            _apply_markdown(self._textbox, content)
 
     def _copy(self):
         self.clipboard_clear()
-        self.clipboard_append(self._text_var.get())
+        self.clipboard_append(self.get_text())
         self._copy_lbl.configure(text="Copied")
         self.after(2000, lambda: self._copy_lbl.configure(text=""))
 
     def append(self, text: str):
-        self._text_var.set(self._text_var.get() + text)
+        self._textbox.configure(state="normal")
+        self._textbox.insert("end", text)
+        self._textbox.configure(state="disabled")
+        _auto_height(self._textbox)
 
     def get_text(self) -> str:
-        return self._text_var.get()
+        return self._textbox.get("1.0", "end-1c")
 
-    def set_wrap(self, width: int):
-        self._label.configure(wraplength=max(200, width - 100))
+    def set_wrap(self, pixel_width: int):
+        chars = max(40, (pixel_width - 120) // 8)
+        self._textbox.configure(width=chars)
 
 
 # ---------------------------------------------------------------------------
@@ -602,14 +665,10 @@ class ChatTab(ctk.CTkFrame):
         self._status.configure(text="", text_color=_MUTED)
 
         if self._active_bubble:
-            raw     = self._active_bubble.get_text()
-            cleaned = _strip_markdown(raw)
-            # Update bubble display with clean text
-            if cleaned != raw:
-                self._active_bubble._text_var.set(cleaned)
-            # Only append to history if tools didn't already sync it
+            raw = self._active_bubble.get_text()
+            _apply_markdown(self._active_bubble._textbox, raw)
             if not self._messages or self._messages[-1].get("role") != "assistant":
-                self._messages.append({"role": "assistant", "content": cleaned})
+                self._messages.append({"role": "assistant", "content": raw})
             self._scroll_to_bottom()
         self._active_bubble = None
 
