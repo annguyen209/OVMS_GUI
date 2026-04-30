@@ -440,7 +440,6 @@ class ChatTab(ctk.CTkFrame):
             text_color=theme.TEXT,
         )
         self._model_combo.pack(side="left", pady=9)
-        self._refresh_model_name()
 
         self._refresh_btn = ctk.CTkButton(
             top, text="Refresh", width=60, height=30, font=ctk.CTkFont(size=11),
@@ -540,6 +539,7 @@ class ChatTab(ctk.CTkFrame):
             command=self._send,
         )
         self._send_btn.pack(side="right", padx=(0, 12), pady=10)
+        self._refresh_model_name()
 
     # ------------------------------------------------------------------
     # Helpers
