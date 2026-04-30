@@ -83,6 +83,9 @@ def _reinstall_venv(h: TestHarness):
         lambda: "Installed" in h.setup.status("Python 3.x venv"),
         timeout=120, label="venv reinstalled",
     )
+    # Packages (fastapi, httpx, etc.) were lost when venv was removed — reinstall all
+    h.setup.install_all()
+    h.setup.wait_all_ok(timeout=300)
 
 
 def _download_model(h: TestHarness):
@@ -120,11 +123,10 @@ def _verify_stack(h: TestHarness):
     h.tab("Dashboard")
     ovms_up  = h.dashboard.ovms_status()  == "Running"
     proxy_up = h.dashboard.proxy_status() == "Running"
-    # Already fully running
     if ovms_up and proxy_up:
         return
-    # Partially running — stop first so we get a clean start
-    if ovms_up or proxy_up:
+    # Partially running or busy — stop for a clean start
+    if ovms_up or proxy_up or h._app._dashboard._stack_busy:
         h.dashboard.stop_stack()
         h.dashboard.wait_stopped(timeout=30)
     time.sleep(2)
