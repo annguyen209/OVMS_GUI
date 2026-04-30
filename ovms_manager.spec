@@ -34,6 +34,12 @@ a = Analysis(
         'pystray',
         'pystray._win32',
         'httpx',
+        'huggingface_hub',
+        'huggingface_hub.file_download',
+        'huggingface_hub._snapshot_download',
+        'requests',
+        'requests.adapters',
+        'requests.packages',
         'duckduckgo_search',
         'app.config',
         'app.gui',
@@ -92,3 +98,4 @@ coll = COLLECT(
     upx_exclude=[],
     name='OpenVINO Manager',
 )
+

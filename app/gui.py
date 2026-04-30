@@ -1548,6 +1548,7 @@ class App(ctk.CTk):
 
     def _quit(self):
         """Actually exit the application."""
+        import os as _os
         if self._tray_icon:
             try:
                 self._tray_icon.stop()
@@ -1558,11 +1559,17 @@ class App(ctk.CTk):
         except Exception:
             pass
         try:
-            self._server.stop_stack()
-        except Exception:
-            pass
-        try:
             self._server.shutdown()
         except Exception:
             pass
+        # Stop stack in a background thread so the UI doesn't freeze,
+        # then force-exit after a short grace period.
+        def _stop_and_exit():
+            try:
+                self._server.stop_stack()
+            except Exception:
+                pass
+            _os._exit(0)
+        import threading as _t
+        _t.Thread(target=_stop_and_exit, daemon=True).start()
         self.destroy()

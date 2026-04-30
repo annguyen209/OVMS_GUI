@@ -301,6 +301,16 @@ def _download_worker(
     model.is_downloading = True
     model.download_progress = 0.0
 
+    # Verify huggingface_hub is importable; if not, guide user to check setup
+    try:
+        from huggingface_hub import snapshot_download as _sd_check  # noqa: F401
+    except ImportError:
+        model.is_downloading = False
+        if on_done:
+            on_done(model, False,
+                    "huggingface_hub not found. Go to Setup tab and reinstall the Python environment.")
+        return
+
     try:
         from huggingface_hub import snapshot_download, HfFileSystem
 
@@ -321,7 +331,10 @@ def _download_worker(
 
         def _dl():
             try:
-                snapshot_download(repo_id=model.hf_repo_id, local_dir=str(local_dir))
+                snapshot_download(
+                    repo_id=model.hf_repo_id,
+                    local_dir=str(local_dir),
+                )
             except Exception as e:
                 exc_holder[0] = e
             finally:
