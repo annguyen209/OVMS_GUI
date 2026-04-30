@@ -122,10 +122,10 @@ class LogViewerWidget(ctk.CTkFrame):
             self._status_label.configure(text="")
         except FileNotFoundError:
             self._set_text(["Waiting for server to start..."])
-            self._status_label.configure(text="not started", text_color="gray")
+            self._status_label.configure(text="Not started", text_color="gray")
         except Exception as exc:
             logger.debug("Log viewer refresh error: %s", exc)
-            self._status_label.configure(text="read error", text_color="red")
+            self._status_label.configure(text="Read error", text_color="red")
         finally:
             self._schedule_refresh()
 

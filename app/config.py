@@ -86,7 +86,7 @@ def _detect_python() -> str:
 def _detect_ovms() -> str:
     """
     Find ovms.exe — checks in priority order:
-      1. App-managed path (%LOCALAPPDATA%\OVMS Manager\ovms\)
+      1. App-managed path (%LOCALAPPDATA%\\OVMS Manager\\ovms\\)
       2. ovms.exe on system PATH  (user added it globally)
     Falls back to the managed path so Setup tab can install it there.
     """
@@ -114,7 +114,7 @@ DEFAULTS: dict = {
     "ovms_rest_port": 8000,
     "proxy_port":     8001,
     "auto_start_stack": False,
-    "ovms_device":      "GPU",
+    "ovms_device":      "CPU",
 }
 
 

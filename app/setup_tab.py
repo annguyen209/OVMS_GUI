@@ -106,7 +106,7 @@ class _ComponentRow(ctk.CTkFrame):
             self._status_lbl.configure(text="Installed", text_color=theme.GREEN)
             self._btn.configure(state="disabled", fg_color=theme.CARD2,
                                 border_width=1, border_color=theme.BORDER2,
-                                text_color=theme.MUTED, text="Done")
+                                text_color=theme.GREEN, text="✓ Done")
             # Show Remove button if an uninstall function was provided
             if self._uninstall_fn:
                 self._remove_btn.configure(text="Remove", state="normal")

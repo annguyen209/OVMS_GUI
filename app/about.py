@@ -150,7 +150,7 @@ class AboutTab(ctk.CTkFrame):
         ctk.CTkLabel(hero,
                      text="A desktop GUI for managing OpenVINO Model Server. "
                           "Download models, start the server, and connect your "
-                          "IDE to a local AI backend running entirely on your Intel hardware.",
+                          "IDE to a local AI backend running on your hardware with Intel OpenVINO acceleration.",
                      font=ctk.CTkFont(size=13), text_color=theme.MUTED,
                      anchor="w", justify="left", wraplength=860,
                      ).pack(fill="x", padx=24, pady=(0, 20))
@@ -173,10 +173,9 @@ class AboutTab(ctk.CTkFrame):
         card.add_body(
             "Ollama uses llama.cpp which does not support Intel Arc iGPU on Windows. "
             "It falls back to CPU-only inference. OpenVINO is purpose-built for Intel "
-            "silicon and can dispatch work to the Arc iGPU (shared system RAM acts as "
-            "VRAM), the NPU for low-power always-on tasks, or all three devices in "
-            "parallel via the AUTO device. On a machine with 32 GB RAM, this means "
-            "up to ~20 GB of effective VRAM for the iGPU."
+            "silicon and can run models on the CPU, the Arc iGPU (shared system RAM acts "
+            "as VRAM), or the NPU for low-power tasks. On a machine with 32 GB RAM, "
+            "the iGPU can use up to ~20 GB as effective VRAM."
         )
 
         # Feature pills
@@ -215,9 +214,9 @@ class AboutTab(ctk.CTkFrame):
         card.add_heading("How this app fits together", theme.BLUE)
 
         steps = [
-            ("1", "OVMS loads the model onto the Arc iGPU and listens on port 8000.",  theme.BLUE),
-            ("2", "A thin proxy on port 8001 clamps max_tokens so requests never exceed the model's context window.", theme.BLUE),
-            ("3", "Your IDE extension (Continue.dev or OpenCode) connects to localhost:8001/v3 - just like it would to the OpenAI API.", theme.GREEN),
+            ("1", f"OVMS loads the model onto your device and listens on port {cfg.ovms_rest_port}.",  theme.BLUE),
+            ("2", f"A thin proxy on port {cfg.proxy_port} clamps max_tokens so requests never exceed the model's context window.", theme.BLUE),
+            ("3", f"Your IDE extension (Continue.dev or OpenCode) connects to localhost:{cfg.proxy_port}/v3 — just like it would to the OpenAI API.", theme.GREEN),
         ]
         for num, text, color in steps:
             row = ctk.CTkFrame(card, fg_color=theme.CARD2, corner_radius=6,

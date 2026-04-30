@@ -123,6 +123,11 @@ class EndpointPanel(ctk.CTkFrame):
         self._build_row("Base URL", self._url_var,   theme.BLUE)
         self._build_row("Model",    self._model_var, theme.GREEN)
 
+        ctk.CTkLabel(self,
+                     text="Use this as base_url in the openai SDK, or the server URL in Continue.dev / OpenCode.",
+                     font=ctk.CTkFont(size=10), text_color=theme.MUTED, anchor="w",
+                     ).pack(fill="x", padx=16, pady=(0, 10))
+
         self.refresh()
 
     def _build_row(self, label: str, var: tk.StringVar, accent: str):
@@ -275,7 +280,7 @@ class DashboardTab(ctk.CTkFrame):
         self._endpoint_panel.pack(fill="x", padx=16, pady=(0, 4))
 
         # ---- Controls ----
-        _section_header(self, "CONTROLS")
+        _section_header(self, "SERVER CONTROL")
 
         ctrl = ctk.CTkFrame(self, fg_color=theme.CARD, corner_radius=8,
                              border_width=1, border_color=theme.BORDER)
@@ -347,8 +352,8 @@ class DashboardTab(ctk.CTkFrame):
             return
         stopping = self._server.ovms_running or self._server.proxy_running
         self._stack_busy = True
-        self._action_btn.configure(state="disabled", text="Please wait...", fg_color=theme.MUTED)
-        self._status_msg.configure(text="Working...", text_color=theme.AMBER)
+        self._action_btn.configure(state="disabled", text="Please wait…", fg_color=theme.MUTED)
+        self._status_msg.configure(text="Working…", text_color=theme.AMBER)
 
         def _worker():
             ok, msg = self._server.stop_stack() if stopping else self._server.start_stack()
@@ -361,6 +366,8 @@ class DashboardTab(ctk.CTkFrame):
         self._status_msg.configure(text=msg,
                                    text_color=theme.GREEN if ok else theme.RED)
         self._action_btn.configure(state="normal")
+        if ok:
+            self.after(8000, lambda: self._status_msg.configure(text=""))
         if was_stopping:
             self._refresh_cards()
         else:
@@ -475,6 +482,7 @@ class ModelRow(ctk.CTkFrame):
             self,
             text="",
             height=34,
+            width=110,
             font=ctk.CTkFont(size=12),
             corner_radius=6,
             command=self._on_btn_click,
@@ -501,7 +509,7 @@ class ModelRow(ctk.CTkFrame):
             self._status_lbl.configure(text="Active", text_color=theme.BLUE)
             self._progress_bar.grid_remove()
             self._btn.configure(
-                text="Active",
+                text="In use",
                 state="disabled",
                 fg_color=theme.BORDER,
                 hover_color=theme.BORDER,
@@ -584,7 +592,7 @@ class ModelRow(ctk.CTkFrame):
     # ------------------------------------------------------------------
 
     def _activate(self):
-        self._btn.configure(state="disabled", text="Applying model…",
+        self._btn.configure(state="disabled", text="Applying…",
                             fg_color=theme.AMBER, text_color="#ffffff")
         self._notify(f"Activating {self._model.display_name}…", theme.AMBER)
 
@@ -755,7 +763,7 @@ class HFSearchPanel(ctk.CTkFrame):
             self._expanded = False
         else:
             self._body.pack(fill="x")
-            self._toggle_btn.configure(text="Close ▴")
+            self._toggle_btn.configure(text="Collapse ▴")
             self._expanded = True
 
     # ------------------------------------------------------------------
@@ -862,7 +870,7 @@ class HFSearchPanel(ctk.CTkFrame):
         is_added = model_id in self._added_ids
         add_btn  = ctk.CTkButton(
             row,
-            text="Added" if is_added else "Add",
+            text="Added to list" if is_added else "Add",
             width=60, height=26,
             font=ctk.CTkFont(size=11),
             fg_color=theme.CARD2 if is_added else theme.BLUE,
@@ -909,7 +917,7 @@ class HFSearchPanel(ctk.CTkFrame):
         btn = self._btn_map.get(model_id)
         if btn:
             btn.configure(
-                text="Added", state="disabled",
+                text="Added to list", state="disabled",
                 fg_color=theme.CARD2, border_width=1,
                 border_color=theme.BORDER2, text_color=theme.GREEN,
             )
@@ -944,8 +952,9 @@ class ModelsTab(ctk.CTkFrame):
         # Notification bar
         self._notif_bar = ctk.CTkLabel(
             self,
-            text="",
+            text="Select a model to download or activate.",
             font=ctk.CTkFont(size=12),
+            text_color=theme.MUTED,
             anchor="w",
             height=28,
         )
@@ -1261,7 +1270,7 @@ class SettingsTab(ctk.CTkFrame):
 
         self._device_menu = ctk.CTkOptionMenu(
             scroll,
-            values=["GPU", "CPU", "NPU", "AUTO"],
+            values=["CPU", "GPU", "NPU", "AUTO"],
             font=ctk.CTkFont(size=12),
             fg_color=theme.CARD2,
             button_color=theme.BORDER2,
@@ -1277,7 +1286,7 @@ class SettingsTab(ctk.CTkFrame):
 
         ctk.CTkLabel(
             scroll,
-            text="Takes effect the next time you activate a model.",
+            text="Takes effect the next time you activate a model. Restart the stack (Dashboard) to apply.",
             font=ctk.CTkFont(size=11),
             text_color=theme.MUTED,
             anchor="w",
@@ -1361,11 +1370,12 @@ class SettingsTab(ctk.CTkFrame):
         ).pack(side="right")
 
     def _browse(self, key: str, kind: str):
+        label = next((lbl for k, lbl, _ in self._FIELDS if k == key), key)
         current = self._entries[key].get()
         if kind == "dir":
-            path = filedialog.askdirectory(initialdir=current or "/", title=f"Select {key}")
+            path = filedialog.askdirectory(initialdir=current or "/", title=f"Select {label}")
         else:
-            path = filedialog.askopenfilename(initialdir=str(Path(current).parent) if current else "/", title=f"Select {key}")
+            path = filedialog.askopenfilename(initialdir=str(Path(current).parent) if current else "/", title=f"Select {label}")
         if path:
             entry = self._entries[key]
             entry.delete(0, "end")
@@ -1454,7 +1464,7 @@ class App(ctk.CTk):
                      font=ctk.CTkFont(size=16, weight="bold"),
                      text_color="#f8fafc").pack(side="left")
 
-        ctk.CTkLabel(left, text="  OpenVINO Model Server",
+        ctk.CTkLabel(left, text="  Intel OpenVINO · Local AI",
                      font=ctk.CTkFont(size=12), text_color=theme.MUTED).pack(side="left")
 
         ctk.CTkButton(
@@ -1541,15 +1551,7 @@ class App(ctk.CTk):
 
     def _prompt_install_missing(self):
         """Called by SetupTab after all checks complete and something is missing."""
-        import tkinter.messagebox as _mb
-        answer = _mb.askyesno(
-            "OpenVINO Manager - Setup Required",
-            "Some required components are not installed yet.\n\n"
-            "Would you like to install them now?",
-            icon="warning",
-        )
-        if answer:
-            self._tabs.set("Setup")
+        self._tabs.set("Setup")
 
     def _on_tab_change(self):
         tab = self._tabs.get()

@@ -442,13 +442,14 @@ class ChatTab(ctk.CTkFrame):
         self._model_combo.pack(side="left", pady=9)
         self._refresh_model_name()
 
-        ctk.CTkButton(
+        self._refresh_btn = ctk.CTkButton(
             top, text="Refresh", width=60, height=30, font=ctk.CTkFont(size=11),
             fg_color=theme.CARD2, hover_color=theme.BORDER,
             border_width=1, border_color=theme.BORDER2,
             text_color=theme.TEXT2,
-            command=self._refresh_model_name,
-        ).pack(side="left", padx=4)
+            command=self._on_refresh_click,
+        )
+        self._refresh_btn.pack(side="left", padx=4)
 
         ctk.CTkButton(
             top, text="Clear", width=70, height=30, font=ctk.CTkFont(size=12),
@@ -460,7 +461,7 @@ class ChatTab(ctk.CTkFrame):
 
         # Tools toggle
         self._tools_var = ctk.BooleanVar(value=True)
-        ctk.CTkLabel(top, text="Web tools:",
+        ctk.CTkLabel(top, text="Web search:",
                      font=ctk.CTkFont(size=11), text_color=theme.MUTED,
                      ).pack(side="right", padx=(0, 4))
         ctk.CTkSwitch(top, text="", variable=self._tools_var,
@@ -544,6 +545,11 @@ class ChatTab(ctk.CTkFrame):
     # Helpers
     # ------------------------------------------------------------------
 
+    def _on_refresh_click(self):
+        self._refresh_model_name()
+        self._refresh_btn.configure(text="✓", text_color=theme.GREEN)
+        self.after(1200, lambda: self._refresh_btn.configure(text="Refresh", text_color=theme.TEXT2))
+
     def _refresh_model_name(self):
         active = read_active_model_name()
         names: list[str] = []
@@ -553,15 +559,24 @@ class ChatTab(ctk.CTkFrame):
             name = m.model_name_for_config
             if m.is_downloaded and name not in names:
                 names.append(name)
-        if not names:
-            names = [active or "qwen2.5-coder-7b-instruct-int4-ov"]
-        self._model_combo.configure(values=names)
-        current = self._model_combo.get()
-        if not current or current not in names:
-            self._model_combo.set(names[0])
+        if names:
+            self._model_combo.configure(values=names)
+            current = self._model_combo.get()
+            if not current or current not in names:
+                self._model_combo.set(names[0])
+            self._send_btn.configure(state="normal")
+            self._status.configure(text="")
+        else:
+            self._model_combo.configure(values=[""])
+            self._model_combo.set("")
+            self._send_btn.configure(state="disabled")
+            self._status.configure(
+                text="No model active — go to Models tab to download and activate one.",
+                text_color=theme.AMBER,
+            )
 
     def _current_model(self) -> str:
-        return self._model_combo.get().strip() or read_active_model_name() or "qwen2.5-coder-7b-instruct-int4-ov"
+        return self._model_combo.get().strip() or read_active_model_name() or ""
 
     def _clear(self):
         self._messages.clear()
@@ -774,7 +789,23 @@ class ChatTab(ctk.CTkFrame):
             fg_color=theme.BLUE, hover_color=theme.BLUE_H,
             command=self._send,
         )
-        self._status.configure(text=f"Error: {msg}", text_color=theme.RED)
+        friendly = self._friendly_error(msg)
+        self._status.configure(text=f"Error: {friendly}", text_color=theme.RED)
         if self._active_bubble:
-            self._active_bubble.append(f"\n[Error: {msg}]")
+            self._active_bubble.append(f"\n[Error: {friendly}]")
         self._active_bubble = None
+
+    @staticmethod
+    def _friendly_error(msg: str) -> str:
+        m = msg.lower()
+        if "connection refused" in m or "connect" in m and "error" in m:
+            return "Cannot connect — start the stack on the Dashboard first."
+        if "422" in m:
+            return "The model rejected the request. Check the model is loaded."
+        if "404" in m:
+            return "Model not found. Activate a model on the Models tab."
+        if "500" in m:
+            return "Server error — the model may have crashed. Check the log."
+        if "timeout" in m or "timed out" in m:
+            return "Request timed out. The model may still be loading."
+        return msg
