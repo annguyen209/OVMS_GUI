@@ -63,7 +63,33 @@ def _detect_devices() -> list[tuple[str, str, str]]:
     except Exception:
         pass
 
-    # 2. Direct openvino import — slow but accurate
+    # 2. Subprocess via OVMS bundled Python — works in installed exe
+    try:
+        import subprocess
+        ovms_py = Path(cfg.ovms_exe).parent / "python" / "python.exe"
+        if ovms_py.is_file():
+            script = (
+                "import openvino as ov; core = ov.Core();\n"
+                "[print(d+'|'+(core.get_property(d,'FULL_DEVICE_NAME') or d))"
+                " for d in core.available_devices]"
+            )
+            r = subprocess.run(
+                [str(ovms_py), "-c", script],
+                capture_output=True, text=True, timeout=20,
+            )
+            if r.returncode == 0:
+                results = []
+                for line in r.stdout.strip().splitlines():
+                    if "|" in line:
+                        tok, name = line.split("|", 1)
+                        tok, name = tok.strip(), name.strip()
+                        results.append((tok, name, _DESCRIPTIONS.get(tok, "")))
+                if results:
+                    return results
+    except Exception:
+        pass
+
+    # 3. Direct openvino import — works in dev environment
     try:
         import openvino as ov
         core = ov.Core()
