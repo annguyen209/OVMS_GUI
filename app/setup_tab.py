@@ -212,7 +212,7 @@ class SetupTab(ctk.CTkFrame):
         self._all_badge.pack(side="left", padx=10)
 
         ctk.CTkLabel(header_card,
-                     text="OVMS Manager needs these components to run. "
+                     text="OpenVINO Manager needs these components to run. "
                           "Click Install next to any missing item, or use "
                           "Install All to set up everything automatically.",
                      font=ctk.CTkFont(size=12), text_color=theme.MUTED,

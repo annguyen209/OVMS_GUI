@@ -215,9 +215,9 @@ class ServerManager:
             proc.wait(timeout=10)
             code = proc.returncode
             hex_code = f"0x{code & 0xFFFFFFFF:08X}" if code < 0 else hex(code)
-            msg = f"\n[OVMS Manager] OVMS process exited early (code {code} / {hex_code}).\n"
+            msg = f"\n[OpenVINO Manager] OVMS process exited early (code {code} / {hex_code}).\n"
             if code in (0xC0000135, -1073741515):
-                msg += "[OVMS Manager] 0xC0000135 = DLL not found. Possible fix: install Visual C++ Redistributable (vc_redist.x64.exe) or ensure setupvars.bat ran correctly.\n"
+                msg += "[OpenVINO Manager] 0xC0000135 = DLL not found. Possible fix: install Visual C++ Redistributable (vc_redist.x64.exe) or ensure setupvars.bat ran correctly.\n"
             try:
                 with open(log_path, "a", encoding="utf-8") as fh:
                     fh.write(msg)

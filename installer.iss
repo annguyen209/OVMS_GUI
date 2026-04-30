@@ -1,12 +1,12 @@
 ; Inno Setup script for OVMS Manager
 ; Requires Inno Setup 6+ from https://jrsoftware.org/isinfo.php
 
-#define AppName      "OVMS Manager"
+#define AppName      "OpenVINO Manager"
 #define AppVersion   "1.0.0"
 #define AppPublisher "anzdev4life"
-#define AppURL       "https://github.com/annguyen209/OVMS_GUI"
-#define AppExeName   "OVMS Manager.exe"
-#define BuildDir     "dist\OVMS Manager"
+#define AppURL       "https://github.com/annguyen209/openvino-manager"
+#define AppExeName   "OpenVINO Manager.exe"
+#define BuildDir     "dist\OpenVINO Manager"
 
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
@@ -38,7 +38,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon";   Description: "{cm:CreateDesktopIcon}";      GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "startupentry";  Description: "Start OVMS Manager with Windows"; GroupDescription: "Startup:"
+Name: "startupentry";  Description: "Start OpenVINO Manager with Windows"; GroupDescription: "Startup:"
 
 [Files]
 Source: "{#BuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -69,7 +69,7 @@ function InitializeSetup(): Boolean;
 begin
   Result := True;
   if not IsWin64 then begin
-    MsgBox('OVMS Manager requires a 64-bit version of Windows 10 or later.', mbError, MB_OK);
+    MsgBox('OpenVINO Manager requires a 64-bit version of Windows 10 or later.', mbError, MB_OK);
     Result := False;
   end;
 end;

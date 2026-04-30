@@ -815,7 +815,7 @@ class ModelsTab(ctk.CTkFrame):
 # ---------------------------------------------------------------------------
 
 _REG_KEY  = r"Software\Microsoft\Windows\CurrentVersion\Run"
-_REG_NAME = "OVMS Manager"
+_REG_NAME = "OpenVINO Manager"
 
 
 def _startup_command() -> str:
@@ -997,7 +997,7 @@ class SettingsTab(ctk.CTkFrame):
                       ).pack(side="right")
 
         ctk.CTkLabel(startup_card,
-                     text="Launches OVMS Manager silently at Windows login "
+                     text="Launches OpenVINO Manager silently at Windows login "
                           "via HKCU\\...\\Run registry key.",
                      font=ctk.CTkFont(size=11), text_color=theme.MUTED,
                      anchor="w", wraplength=800,
@@ -1095,7 +1095,7 @@ class App(ctk.CTk):
 
     def __init__(self):
         super().__init__()
-        self.title("OVMS Model Server Manager")
+        self.title("OpenVINO Manager")
         self.geometry("1000x720")
         self.minsize(800, 600)
         self.after(0, lambda: self.state("zoomed"))
@@ -1132,7 +1132,7 @@ class App(ctk.CTk):
         left = ctk.CTkFrame(banner, fg_color="transparent")
         left.pack(side="left", padx=18, pady=10)
 
-        ctk.CTkLabel(left, text="OVMS Manager",
+        ctk.CTkLabel(left, text="OpenVINO Manager",
                      font=ctk.CTkFont(size=16, weight="bold"),
                      text_color="#f8fafc").pack(side="left")
 
@@ -1155,7 +1155,7 @@ class App(ctk.CTk):
 
         ctk.CTkLabel(
             footer,
-            text=f"OVMS Manager  v{APP_VERSION}",
+            text=f"OpenVINO Manager  v{APP_VERSION}",
             font=ctk.CTkFont(size=10),
             text_color=theme.MUTED,
         ).pack(side="left", padx=16)
@@ -1169,7 +1169,7 @@ class App(ctk.CTk):
         ctk.CTkFrame(footer, width=1, fg_color="#374151").pack(side="right")
 
         ctk.CTkLabel(
-            footer, text="github.com/annguyen209/OVMS_GUI",
+            footer, text="github.com/annguyen209/openvino-manager",
             font=ctk.CTkFont(size=10),
             text_color=theme.MUTED,
         ).pack(side="right", padx=16)
@@ -1225,7 +1225,7 @@ class App(ctk.CTk):
         """Called by SetupTab after all checks complete and something is missing."""
         import tkinter.messagebox as _mb
         answer = _mb.askyesno(
-            "OVMS Manager - Setup Required",
+            "OpenVINO Manager - Setup Required",
             "Some required components are not installed yet.\n\n"
             "Would you like to install them now?",
             icon="warning",
@@ -1254,7 +1254,7 @@ class App(ctk.CTk):
                 pystray.MenuItem("Show", self._tray_show, default=True),
                 pystray.MenuItem("Quit", self._tray_quit),
             )
-            self._tray_icon = pystray.Icon("OVMS Manager", img, "OVMS Manager", menu)
+            self._tray_icon = pystray.Icon("OpenVINO Manager", img, "OpenVINO Manager", menu)
             threading.Thread(target=self._tray_icon.run, daemon=True).start()
 
         except Exception as exc:

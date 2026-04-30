@@ -15,7 +15,7 @@ from app import theme
 
 APP_VERSION = "1.0.0"
 APP_AUTHOR  = "AnsCodeLab"
-APP_REPO    = "github.com/annguyen209/OVMS_GUI"
+APP_REPO    = "github.com/annguyen209/openvino-manager"
 
 
 # Helpers
@@ -139,7 +139,7 @@ class AboutTab(ctk.CTkFrame):
         top = ctk.CTkFrame(hero, fg_color="transparent")
         top.pack(fill="x", padx=24, pady=(22, 6))
 
-        ctk.CTkLabel(top, text="OVMS Manager",
+        ctk.CTkLabel(top, text="OpenVINO Manager",
                      font=ctk.CTkFont(size=22, weight="bold"),
                      text_color="#f8fafc").pack(side="left")
 
@@ -250,7 +250,7 @@ class AboutTab(ctk.CTkFrame):
         info_row.pack(fill="x", padx=18, pady=16)
 
         for label, value, color in [
-            ("Application",  "OVMS Manager",       theme.TEXT),
+            ("Application",  "OpenVINO Manager", theme.TEXT),
             ("Version",      f"v{APP_VERSION}",    theme.BLUE),
             ("Author",       APP_AUTHOR,            theme.TEXT),
             ("Repository",   APP_REPO,              theme.TEXT),
