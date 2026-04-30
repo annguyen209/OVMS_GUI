@@ -1169,7 +1169,7 @@ class App(ctk.CTk):
         ctk.CTkFrame(footer, width=1, fg_color="#374151").pack(side="right")
 
         ctk.CTkLabel(
-            footer, text="github.com/annguyen209/openvino-manager",
+            footer, text="github.com/AnsCodeLab/openvino-manager",
             font=ctk.CTkFont(size=10),
             text_color=theme.MUTED,
         ).pack(side="right", padx=16)

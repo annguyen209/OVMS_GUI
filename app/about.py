@@ -15,7 +15,7 @@ from app import theme
 
 APP_VERSION = "1.0.0"
 APP_AUTHOR  = "AnsCodeLab"
-APP_REPO    = "github.com/annguyen209/openvino-manager"
+APP_REPO    = "github.com/AnsCodeLab/openvino-manager"
 
 
 # Helpers
