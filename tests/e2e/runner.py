@@ -15,6 +15,10 @@ import threading
 from dataclasses import dataclass, field
 from typing import Callable
 
+# Force UTF-8 output on Windows so Unicode symbols print correctly
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
