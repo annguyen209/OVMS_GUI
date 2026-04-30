@@ -1,8 +1,7 @@
 """
 main.py — Entry point for the OVMS GUI Manager.
 
-Run with:
-    C:\\Users\\annguyen209\\openvino-env\\Scripts\\python.exe main.py
+Run with:  python main.py
 or simply double-click run.bat.
 """
 
@@ -45,7 +44,7 @@ def main():
         print(
             f"\nFailed to import GUI modules: {exc}\n"
             "Please install dependencies first:\n"
-            r"  C:\Users\annguyen209\openvino-env\Scripts\pip.exe install -r requirements.txt"
+            "  pip install -r requirements.txt"
         )
         sys.exit(1)
 

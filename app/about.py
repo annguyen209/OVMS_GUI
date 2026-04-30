@@ -28,7 +28,7 @@ _AMBER   = "#c55000"
 _BANNER  = "#1b1f23"
 
 APP_VERSION = "1.0.0"
-APP_AUTHOR  = "anzdev4life"
+APP_AUTHOR  = "AnsCodeLab"
 APP_REPO    = "github.com/annguyen209/OVMS_GUI"
 
 

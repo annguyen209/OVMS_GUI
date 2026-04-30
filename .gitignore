@@ -7,3 +7,5 @@ app-stdout.log
 app-stderr.log
 build.log
 ovms-gui-config.json
+test_client/obj/
+test_client/bin/

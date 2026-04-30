@@ -123,8 +123,8 @@ class LogViewerWidget(ctk.CTkFrame):
             self._set_text(lines)
             self._status_label.configure(text="")
         except FileNotFoundError:
-            self._set_text([f"[Log file not found: {self._log_path}]"])
-            self._status_label.configure(text="file missing", text_color="orange")
+            self._set_text(["Waiting for server to start..."])
+            self._status_label.configure(text="not started", text_color="gray")
         except Exception as exc:
             logger.debug("Log viewer refresh error: %s", exc)
             self._status_label.configure(text="read error", text_color="red")
@@ -135,7 +135,7 @@ class LogViewerWidget(ctk.CTkFrame):
         """Return the last *_tail_lines* lines of the log file."""
         size = os.path.getsize(self._log_path)
         if size == 0:
-            return ["[Log file is empty]"]
+            return ["Waiting for server output..."]
 
         # Read from the end - chunk approach for large files
         chunk_size = min(size, 32 * 1024)  # read at most 32 KB from the end

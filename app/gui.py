@@ -47,10 +47,11 @@ _RED     = "#a4262c"   # Microsoft red (error/stopped)
 _AMBER   = "#c55000"   # Microsoft orange (warning/active model)
 _BANNER  = "#1b1f23"   # banner background (near-black)
 _FOOTER  = "#1b1f23"   # footer background
+_GRAY    = "#64748b"   # slate-500 (Download button)
 
 _POLL_MS = 3000
 APP_VERSION = "1.0.0"
-APP_AUTHOR  = "anzdev4life"
+APP_AUTHOR  = "AnsCodeLab"
 
 
 # ---------------------------------------------------------------------------
@@ -366,16 +367,20 @@ class DashboardTab(ctk.CTkFrame):
 
         def _worker():
             ok, msg = self._server.stop_stack() if stopping else self._server.start_stack()
-            self.after(0, lambda: self._on_action_done(ok, msg))
+            self.after(0, lambda: self._on_action_done(ok, msg, stopping))
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _on_action_done(self, ok: bool, msg: str):
+    def _on_action_done(self, ok: bool, msg: str, was_stopping: bool):
         self._stack_busy = False
         self._status_msg.configure(text=msg,
                                    text_color=_GREEN if ok else _RED)
         self._action_btn.configure(state="normal")
-        self._refresh_cards()
+        if was_stopping:
+            self._refresh_cards()
+        else:
+            # Delay refresh so the background health-poll has time to confirm
+            self.after(4000, self._refresh_cards)
 
     def on_destroy(self):
         self._log_viewer.stop()
@@ -792,7 +797,10 @@ _REG_NAME = "OVMS Manager"
 def _startup_command() -> str:
     """Command written to the registry for auto-start."""
     import sys
-    # Use pythonw.exe (no console window) to launch the GUI
+    if getattr(sys, "frozen", False):
+        # Running as installed bundle — point directly at the exe
+        return f'"{sys.executable}"'
+    # Dev mode — launch via pythonw so there's no console window
     pythonw = sys.executable.replace("python.exe", "pythonw.exe")
     main_py = str(Path(__file__).parent.parent / "main.py")
     return f'"{pythonw}" "{main_py}"'
@@ -1039,9 +1047,9 @@ class App(ctk.CTk):
         self._setup_tray()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        # Auto-start stack if configured
+        # Auto-start stack if user enabled it in Settings
         if cfg.get("auto_start_stack", False):
-            self.after(1500, self._auto_start_stack)
+            self.after(2000, self._auto_start_stack)
 
     # ------------------------------------------------------------------
     # UI
@@ -1112,7 +1120,7 @@ class App(ctk.CTk):
 
         self._setup_tab = SetupTab(
             self._tabs.tab("Setup"),
-            on_all_ok=lambda: self.after(0, lambda: self._tabs.set("Dashboard")),
+            on_missing=self._prompt_install_missing,
         )
         self._setup_tab.pack(fill="both", expand=True)
 
@@ -1134,15 +1142,24 @@ class App(ctk.CTk):
         self._settings_tab = SettingsTab(self._tabs.tab("Settings"))
         self._settings_tab.pack(fill="both", expand=True)
 
-        # Auto-select Setup tab if anything is missing
-        if not installer.all_ok():
-            self._tabs.set("Setup")
-
+        self._tabs.set("Dashboard")  # open on Dashboard by default; Setup is tab 1
         self._tabs.configure(command=self._on_tab_change)
 
     def _auto_start_stack(self):
         if not (self._server.ovms_running or self._server.proxy_running):
             threading.Thread(target=self._server.start_stack, daemon=True).start()
+
+    def _prompt_install_missing(self):
+        """Called by SetupTab after all checks complete and something is missing."""
+        import tkinter.messagebox as _mb
+        answer = _mb.askyesno(
+            "OVMS Manager - Setup Required",
+            "Some required components are not installed yet.\n\n"
+            "Would you like to install them now?",
+            icon="warning",
+        )
+        if answer:
+            self._tabs.set("Setup")
 
     def _on_tab_change(self):
         tab = self._tabs.get()

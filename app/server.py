@@ -12,6 +12,7 @@ import subprocess
 import threading
 import logging
 import os
+from pathlib import Path
 import httpx
 
 from app.config import cfg
@@ -91,22 +92,57 @@ class ServerManager:
     # ------------------------------------------------------------------
 
     def _build_ovms_env(self) -> dict:
-        env = os.environ.copy()
+        import sys as _sys
+        # Normalise all keys to uppercase — Windows env vars are case-insensitive
+        # but Python dicts are not.  os.environ may store "Path" not "PATH", which
+        # would make every subsequent env.get("PATH") return "".
+        env = {k.upper(): v for k, v in os.environ.items()}
+
+        # Source setupvars.bat to pick up OpenVINO paths and PYTHONHOME.
         setupvars = cfg.setupvars
         if not os.path.isfile(setupvars):
             logger.warning("setupvars.bat not found at %s – skipping", setupvars)
-            return env
-        try:
-            result = subprocess.run(
-                ["cmd", "/c", f'"{setupvars}" && set'],
-                capture_output=True, text=True, timeout=30,
-            )
-            for line in result.stdout.splitlines():
-                if "=" in line:
-                    key, _, value = line.partition("=")
-                    env[key.strip()] = value.strip()
-        except Exception as exc:
-            logger.warning("Could not source setupvars.bat: %s", exc)
+        else:
+            try:
+                result = subprocess.run(
+                    ["cmd", "/c", f'"{setupvars}" && set'],
+                    capture_output=True, text=True, timeout=30,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+                for line in result.stdout.splitlines():
+                    if "=" in line:
+                        key, _, value = line.partition("=")
+                        env[key.strip().upper()] = value.strip()
+            except Exception as exc:
+                logger.warning("Could not source setupvars.bat: %s", exc)
+
+        # Set PYTHONHOME and PYTHONPATH explicitly for OVMS's embedded Python.
+        # OVMS ships Python in <ovms>\python\; the stdlib .pyc files live in
+        # <ovms>\python\python312\ (not Lib\ which only has site-packages).
+        # PYTHONHOME sets sys.prefix; PYTHONPATH ensures the stdlib subdir is
+        # on sys.path regardless of which python312.dll gets loaded.
+        ovms_python_dir = Path(cfg.ovms_exe).parent / "python"
+        ovms_stdlib_dir = ovms_python_dir / "python312"
+        if ovms_python_dir.is_dir():
+            env["PYTHONHOME"] = str(ovms_python_dir)
+        if ovms_stdlib_dir.is_dir():
+            env["PYTHONPATH"] = str(ovms_stdlib_dir)
+
+        for _key in ("TCL_LIBRARY", "TK_LIBRARY"):
+            env.pop(_key, None)
+
+        # Strip PyInstaller bundle dirs from PATH so OVMS loads its own DLLs.
+        if getattr(_sys, "frozen", False):
+            bundle_root = os.path.dirname(_sys.executable)
+            internal_dir = os.path.join(bundle_root, "_internal")
+            sep = os.pathsep
+            drop = {bundle_root.lower(), internal_dir.lower()}
+            parts = [p for p in env.get("PATH", "").split(sep)
+                     if p.lower() not in drop]
+            env["PATH"] = sep.join(parts)
+
+        logger.info("OVMS env: PYTHONHOME=%s", env.get("PYTHONHOME", "(not set)"))
+
         return env
 
     def _start_ovms(self) -> tuple[bool, str]:
@@ -118,6 +154,9 @@ class ServerManager:
                 return True, "OVMS already running (external process)."
         try:
             env = self._build_ovms_env()
+            # Ensure log and workspace directories exist
+            Path(cfg.ovms_log).parent.mkdir(parents=True, exist_ok=True)
+            cfg.ovms_workspace.mkdir(parents=True, exist_ok=True)
             # Use a GUI-specific log to avoid colliding with an external OVMS process
             gui_log = cfg.ovms_log.replace("ovms-server.log", "ovms-gui.log") \
                       if "ovms-server.log" in cfg.ovms_log else cfg.ovms_log + ".gui"
@@ -136,6 +175,7 @@ class ServerManager:
             proc = subprocess.Popen(
                 cmd, stdout=log_fh, stderr=log_fh, env=env,
                 creationflags=subprocess.CREATE_NO_WINDOW,
+                cwd=str(Path(cfg.ovms_exe).parent),
             )
             with self._lock:
                 self._ovms_proc = proc
@@ -157,7 +197,17 @@ class ServerManager:
             if self._proxy_running:
                 return True, "Proxy already running (external process)."
         try:
-            # Use a GUI-specific log to avoid colliding with an external proxy
+            Path(cfg.proxy_log).parent.mkdir(parents=True, exist_ok=True)
+            # Deploy proxy script from bundle if it doesn't exist at the config path
+            proxy_path = Path(cfg.proxy_script)
+            if not proxy_path.is_file():
+                import sys as _sys
+                bundle_proxy = Path(getattr(_sys, "_MEIPASS", Path(__file__).parent.parent)) / "ovms-proxy.py"
+                if bundle_proxy.is_file():
+                    proxy_path.parent.mkdir(parents=True, exist_ok=True)
+                    import shutil as _sh
+                    _sh.copy2(bundle_proxy, proxy_path)
+                    logger.info("Deployed proxy script to %s", proxy_path)
             gui_proxy_log = cfg.proxy_log.replace(
                 "ovms-proxy.log", "ovms-proxy-gui.log"
             ) if "ovms-proxy.log" in cfg.proxy_log else cfg.proxy_log + ".gui"

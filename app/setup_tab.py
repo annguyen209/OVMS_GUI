@@ -34,26 +34,26 @@ _CODE_FG = "#e2e8f0"
 class _ComponentRow(ctk.CTkFrame):
 
     def __init__(self, master, name: str, check_fn, install_fn,
-                 on_log, on_refresh, **kw):
+                 on_log, on_refresh, uninstall_fn=None, on_check_done=None, **kw):
         kw.setdefault("fg_color", _CARD)
         kw.setdefault("corner_radius", 8)
         kw.setdefault("border_width", 1)
         kw.setdefault("border_color", _BORDER)
         super().__init__(master, **kw)
 
-        self._name       = name
-        self._check_fn   = check_fn
-        self._install_fn = install_fn
-        self._on_log     = on_log
-        self._on_refresh = on_refresh
-        self._busy       = False
+        self._name          = name
+        self._check_fn      = check_fn
+        self._install_fn    = install_fn
+        self._uninstall_fn  = uninstall_fn
+        self._on_log        = on_log
+        self._on_refresh    = on_refresh
+        self._on_check_done = on_check_done  # called with (ok) when check finishes
+        self._busy          = False
 
         self._build()
-        # Delay until mainloop is running before spawning check threads
-        self.after(600, self.refresh)
+        self.after(500, self.refresh)
 
     def _build(self):
-        # Status indicator: small rounded CTkFrame (4x4 equivalent - use 8x8 for visibility)
         indicator_wrap = ctk.CTkFrame(self, fg_color="transparent", width=20, height=40)
         indicator_wrap.pack(side="left", padx=(14, 8), pady=14)
         indicator_wrap.pack_propagate(False)
@@ -62,18 +62,28 @@ class _ComponentRow(ctk.CTkFrame):
                                         fg_color=_MUTED, corner_radius=5)
         self._status_dot.place(relx=0.5, rely=0.5, anchor="center")
 
-        # Name
         ctk.CTkLabel(self, text=self._name,
                      font=ctk.CTkFont(size=13, weight="bold"),
                      text_color=_TEXT, anchor="w",
                      ).pack(side="left", fill="x", expand=True)
 
-        # Status label
         self._status_lbl = ctk.CTkLabel(self, text="Checking...",
                                         font=ctk.CTkFont(size=12),
                                         text_color=_MUTED, width=130,
                                         anchor="e")
         self._status_lbl.pack(side="left", padx=8)
+
+        # Remove button — only shown when component is installed
+        self._remove_btn = ctk.CTkButton(
+            self, text="Remove", width=80, height=30,
+            font=ctk.CTkFont(size=12),
+            fg_color=_CARD2, hover_color="#fee2e2",
+            border_width=1, border_color=_BORDER2,
+            text_color=_RED,
+            command=self._uninstall,
+        )
+        self._remove_btn.pack(side="right", padx=(4, 4), pady=10)
+        self._remove_btn.pack_forget()  # hidden until installed
 
         # Install button
         self._btn = ctk.CTkButton(self, text="Install", width=90, height=30,
@@ -82,22 +92,29 @@ class _ComponentRow(ctk.CTkFrame):
                                   border_width=1, border_color=_BLUE,
                                   text_color="#ffffff",
                                   command=self._install)
-        self._btn.pack(side="right", padx=14, pady=10)
+        self._btn.pack(side="right", padx=(0, 14), pady=10)
 
     def refresh(self):
         """Kick off a background check - never blocks the main thread."""
         if self._busy:
             return
-        self._status_lbl.configure(text="Checking...", text_color=_MUTED)
-        self._status_dot.configure(fg_color=_MUTED)
+        # Show short name so user sees exactly what is being verified
+        short = self._name.split("(")[0].strip()
+        self._status_lbl.configure(text=f"Checking {short}...", text_color=_MUTED)
+        self._status_dot.configure(fg_color=_AMBER)
         threading.Thread(target=self._check_bg, daemon=True).start()
 
     def _check_bg(self):
-        ok = self._check_fn()
+        try:
+            ok = self._check_fn()
+        except Exception:
+            ok = False
         try:
             self.after(0, lambda: self._apply_result(ok))
+            if self._on_check_done:
+                self.after(0, lambda: self._on_check_done(ok))
         except RuntimeError:
-            pass  # widget destroyed or mainloop not yet running
+            pass
 
     def _apply_result(self, ok: bool):
         if ok:
@@ -106,9 +123,14 @@ class _ComponentRow(ctk.CTkFrame):
             self._btn.configure(state="disabled", fg_color=_CARD2,
                                 border_width=1, border_color=_BORDER2,
                                 text_color=_MUTED, text="Done")
+            # Show Remove button if an uninstall function was provided
+            if self._uninstall_fn:
+                self._remove_btn.pack(side="right", padx=(4, 4), pady=10,
+                                      before=self._btn)
         else:
             self._status_dot.configure(fg_color=_RED)
             self._status_lbl.configure(text="Not found", text_color=_RED)
+            self._remove_btn.pack_forget()
             if not self._busy:
                 self._btn.configure(state="normal", fg_color=_BLUE,
                                     hover_color=_BLUE_H,
@@ -130,16 +152,60 @@ class _ComponentRow(ctk.CTkFrame):
 
         self._install_fn(self._on_log, _done)
 
+    def _uninstall(self):
+        if self._busy or not self._uninstall_fn:
+            return
+        import tkinter.messagebox as _mb
+        from app.config import cfg as _cfg
+        import os as _os
+
+        # Warn if the component lives outside the app-managed directory
+        app_base = _os.path.normcase(
+            _os.environ.get("LOCALAPPDATA", "") + "\\OVMS Manager\\"
+        )
+        py_path  = _os.path.normcase(_cfg.python_exe)
+        ovms_path = _os.path.normcase(_cfg.ovms_exe)
+        external = not (py_path.startswith(app_base) or ovms_path.startswith(app_base))
+
+        msg = f"Remove '{self._name}'?\n\nThis cannot be undone."
+        if external:
+            msg = (
+                f"Remove '{self._name}'?\n\n"
+                "Warning: this component appears to be installed outside the app's "
+                "managed folder and may be shared with other software.\n\n"
+                "Removing it here will only uninstall the packages from that Python "
+                "environment, not delete the interpreter itself.\n\n"
+                "Continue?"
+            )
+
+        if not _mb.askyesno("Remove Component", msg, icon="warning"):
+            return
+        self._busy = True
+        self._remove_btn.configure(state="disabled", text="Removing...")
+        self._btn.configure(state="disabled")
+        self._status_dot.configure(fg_color=_AMBER)
+        self._status_lbl.configure(text="Removing...", text_color=_AMBER)
+
+        def _done(ok: bool, msg: str):
+            self._busy = False
+            self.after(0, self.refresh)
+            self.after(0, self._on_refresh)
+
+        self._uninstall_fn(self._on_log, _done)
+
 
 # Setup Tab
 
 class SetupTab(ctk.CTkFrame):
 
-    def __init__(self, master, on_all_ok=None, **kw):
+    def __init__(self, master, on_all_ok=None, on_missing=None, **kw):
         kw.setdefault("fg_color", _BG)
         super().__init__(master, **kw)
-        self._on_all_ok = on_all_ok   # called when every component is installed
+        self._on_all_ok  = on_all_ok   # called when every component is installed
+        self._on_missing = on_missing   # called when checks finish and some are missing
         self._rows: list[_ComponentRow] = []
+        self._check_results: dict = {}  # row name -> ok bool, filled as checks complete
+        self._rows_pending = 0
         self._build_ui()
         self.refresh()
 
@@ -192,26 +258,33 @@ class SetupTab(ctk.CTkFrame):
         self._list_frame = ctk.CTkFrame(self, fg_color="transparent")
         self._list_frame.pack(fill="x", padx=20, pady=12)
 
+        # (name, check_fn, install_fn, uninstall_fn)
         _components = [
             ("Python 3.12 venv",
              installer.check_venv,
-             installer.install_venv),
+             installer.install_venv,
+             installer.uninstall_venv),
             ("OpenVINO packages (openvino, openvino-genai)",
              installer.check_openvino,
-             installer.install_openvino),
+             installer.install_openvino,
+             installer.uninstall_openvino),
             ("Proxy and GUI dependencies (fastapi, httpx, customtkinter...)",
              installer.check_proxy_deps,
-             lambda log, done: installer.install_all_pip(log, done)),
+             lambda log, done: installer.install_all_pip(log, done),
+             installer.uninstall_proxy_deps),
             ("OVMS binary (ovms.exe)",
              installer.check_ovms,
-             installer.install_ovms),
+             installer.install_ovms,
+             installer.uninstall_ovms),
         ]
 
-        for name, check_fn, install_fn in _components:
+        for name, check_fn, install_fn, uninstall_fn in _components:
             row = _ComponentRow(
                 self._list_frame, name, check_fn, install_fn,
                 on_log=self._append_log,
                 on_refresh=self.refresh,
+                uninstall_fn=uninstall_fn,
+                on_check_done=lambda ok, n=name: self._on_row_check_done(n, ok),
             )
             row.pack(fill="x", pady=4)
             self._rows.append(row)
@@ -240,14 +313,26 @@ class SetupTab(ctk.CTkFrame):
 
     # Actions
 
+    def _set_all_rows_busy(self, busy: bool):
+        """Disable/enable all individual row Install buttons during Install All."""
+        for row in self._rows:
+            if busy:
+                row._btn.configure(state="disabled")
+                row._remove_btn.configure(state="disabled")
+            else:
+                row._btn.configure(state="normal")
+                row._remove_btn.configure(state="normal")
+
     def _install_all(self):
         self._install_all_btn.configure(state="disabled", text="Installing...",
                                         fg_color=_AMBER)
         self._global_status.configure(text="Running full install...",
                                       text_color=_AMBER)
+        self._set_all_rows_busy(True)
 
         def _done(ok: bool, msg: str):
             def _ui():
+                self._set_all_rows_busy(False)
                 self._install_all_btn.configure(state="normal",
                                                 text="Install All",
                                                 fg_color=_BLUE,
@@ -275,12 +360,24 @@ class SetupTab(ctk.CTkFrame):
     # Refresh
 
     def refresh(self):
-        """Trigger background checks on all rows; aggregate result when done."""
+        """Trigger background checks on all rows; aggregate when all finish."""
+        self._global_status.configure(text="Checking components...", text_color=_AMBER)
+        self._check_results.clear()
+        self._rows_pending = len(self._rows)
         for row in self._rows:
             row.refresh()
-        # After all per-row background checks fire, do the aggregate check
-        # Use a delay longer than a typical subprocess call (~3 s)
-        self.after(4000, self._refresh_aggregate)
+
+    def _on_row_check_done(self, name: str, ok: bool):
+        """Called by each row when its check finishes."""
+        self._check_results[name] = ok
+        self._rows_pending -= 1
+        if self._rows_pending <= 0:
+            # All rows done — run aggregate and optionally fire on_missing
+            self._refresh_aggregate()
+
+    def _refresh_aggregate(self):
+        """Run aggregate all_ok() check in background, update badge."""
+        threading.Thread(target=self._aggregate_bg, daemon=True).start()
 
     def _refresh_aggregate(self):
         """Run aggregate all_ok() check in background, update badge."""
@@ -306,7 +403,9 @@ class SetupTab(ctk.CTkFrame):
             if self._on_all_ok:
                 self._on_all_ok()
         else:
+            if self._on_missing:
+                self._on_missing()
             self._all_badge.configure(
-                text="Checking components...",
+                text="Some components missing — click Install to set up",
                 fg_color="#fff7ed", text_color=_AMBER,
             )

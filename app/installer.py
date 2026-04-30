@@ -27,18 +27,24 @@ LogCb  = Callable[[str], None]
 DoneCb = Callable[[bool, str], None]
 
 # ── OVMS release ──────────────────────────────────────────────────────────
-OVMS_VERSION      = "v2026.1"
-OVMS_ZIP_URL      = (
+OVMS_VERSION  = "v2026.1"
+OVMS_ZIP_URL  = (
     "https://github.com/openvinotoolkit/model_server/releases/download/"
     f"{OVMS_VERSION}/ovms_windows_2026.1.0_python_on.zip"
 )
-OVMS_INSTALL_DIR  = Path(cfg.ovms_exe).parent   # e.g. C:\Users\...\ovms
 
-# Python 3.12 candidates (checked in order)
+def _ovms_install_dir() -> Path:
+    """Computed at call time so it always reflects the current cfg.ovms_exe."""
+    return Path(cfg.ovms_exe).parent
+
+# Python 3.12 candidates — prefer the Windows py launcher and PATH,
+# so any system-installed Python 3.12 is used before creating a managed venv.
 _PY312_CANDIDATES = [
-    "py -V:Astral/CPython3.12",
-    "py -3.12",
-    "python3.12",
+    "py -3.12",            # Windows py launcher (handles side-by-side installs)
+    "py -V:3.12",          # py launcher by exact version tag
+    "python3.12",          # common on PATH in some setups
+    "python3",             # may be 3.12 on some machines
+    "python",              # last resort; version checked below
 ]
 
 # Required pip packages per group
@@ -73,6 +79,7 @@ def _pip_check(pkg: str) -> bool:
         result = subprocess.run(
             [cfg.python_exe, "-c", f"import {import_name}"],
             capture_output=True, timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         return result.returncode == 0
     except Exception:
@@ -116,6 +123,7 @@ def _find_python312() -> str | None:
             r = subprocess.run(
                 parts + ["--version"],
                 capture_output=True, text=True, timeout=10,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             if r.returncode == 0 and "3.12" in r.stdout + r.stderr:
                 return candidate
@@ -147,6 +155,7 @@ def install_venv(on_log: LogCb, on_done: DoneCb):
             r = subprocess.run(
                 py.split() + ["-m", "venv", str(venv_path)],
                 capture_output=True, text=True, timeout=60,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             if r.returncode != 0:
                 on_done(False, f"venv creation failed:\n{r.stderr}")
@@ -155,6 +164,7 @@ def install_venv(on_log: LogCb, on_done: DoneCb):
             subprocess.run(
                 [cfg.python_exe, "-m", "pip", "install", "--upgrade", "pip"],
                 capture_output=True, timeout=60,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             on_done(True, "Python venv ready.")
         except Exception as exc:
@@ -171,6 +181,7 @@ def _pip_install(pkgs: list[str], on_log: LogCb, on_done: DoneCb, label: str):
                 [cfg.python_exe, "-m", "pip", "install"] + pkgs,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             for line in proc.stdout:
                 on_log(line.rstrip())
@@ -207,11 +218,13 @@ def install_ovms(on_log: LogCb, on_done: DoneCb):
     def _worker():
         import urllib.request
 
-        zip_path = OVMS_INSTALL_DIR.parent / "ovms_download.zip"
-        OVMS_INSTALL_DIR.parent.mkdir(parents=True, exist_ok=True)
+        install_dir = _ovms_install_dir()
+        zip_path = install_dir.parent / "ovms_download.zip"
+        install_dir.parent.mkdir(parents=True, exist_ok=True)
 
         on_log(f"Downloading OVMS {OVMS_VERSION}...")
         on_log(f"  URL: {OVMS_ZIP_URL}")
+        on_log(f"  Install dir: {install_dir}")
 
         try:
             def _reporthook(block, block_size, total):
@@ -223,7 +236,7 @@ def install_ovms(on_log: LogCb, on_done: DoneCb):
             on_log("Download complete. Extracting...")
 
             with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(OVMS_INSTALL_DIR.parent)
+                zf.extractall(install_dir.parent)
 
             zip_path.unlink(missing_ok=True)
 
@@ -233,7 +246,7 @@ def install_ovms(on_log: LogCb, on_done: DoneCb):
                         "Check the OVMS path in Settings.")
                 return
 
-            on_done(True, f"OVMS installed at {OVMS_INSTALL_DIR}.")
+            on_done(True, f"OVMS installed at {install_dir}.")
         except Exception as exc:
             on_done(False, f"OVMS install failed: {exc}")
 
@@ -279,3 +292,64 @@ def install_everything(on_log: LogCb, on_done: DoneCb):
             install_ovms(on_log, _next)
 
     _chain(pending)
+
+
+# ── Uninstallers ──────────────────────────────────────────────────────────
+
+def _pip_uninstall(pkgs: list[str], on_log: LogCb, on_done: DoneCb, label: str):
+    def _worker():
+        on_log(f"Removing {label}: {' '.join(pkgs)}")
+        try:
+            proc = subprocess.Popen(
+                [cfg.python_exe, "-m", "pip", "uninstall", "-y"] + pkgs,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            for line in proc.stdout:
+                on_log(line.rstrip())
+            proc.wait(timeout=120)
+            if proc.returncode == 0:
+                on_done(True, f"{label} removed.")
+            else:
+                on_done(False, f"{label} removal failed (code {proc.returncode}).")
+        except Exception as exc:
+            on_done(False, str(exc))
+    _run_bg(_worker)
+
+
+def uninstall_venv(on_log: LogCb, on_done: DoneCb):
+    def _worker():
+        venv_path = Path(cfg.python_exe).parent.parent
+        on_log(f"Removing Python venv at {venv_path}...")
+        try:
+            if venv_path.exists():
+                shutil.rmtree(venv_path)
+                on_done(True, "Python venv removed.")
+            else:
+                on_done(False, "Venv directory not found.")
+        except Exception as exc:
+            on_done(False, f"Failed to remove venv: {exc}")
+    _run_bg(_worker)
+
+
+def uninstall_openvino(on_log: LogCb, on_done: DoneCb):
+    _pip_uninstall(_OPENVINO_PKGS, on_log, on_done, "OpenVINO")
+
+
+def uninstall_proxy_deps(on_log: LogCb, on_done: DoneCb):
+    _pip_uninstall(_PROXY_PKGS + _GUI_PKGS, on_log, on_done, "Dependencies")
+
+
+def uninstall_ovms(on_log: LogCb, on_done: DoneCb):
+    def _worker():
+        install_dir = _ovms_install_dir()
+        on_log(f"Removing OVMS at {install_dir}...")
+        try:
+            if install_dir.exists():
+                shutil.rmtree(install_dir)
+                on_done(True, "OVMS binary removed.")
+            else:
+                on_done(False, "OVMS directory not found.")
+        except Exception as exc:
+            on_done(False, f"Failed to remove OVMS: {exc}")
+    _run_bg(_worker)

@@ -6,8 +6,46 @@ echo  OVMS Manager - Build Script
 echo ============================================================
 echo.
 
-set PYTHON=C:\Users\annguyen209\openvino-env\Scripts\python.exe
-set PYINSTALLER=C:\Users\annguyen209\openvino-env\Scripts\pyinstaller.exe
+:: Locate Python and PyInstaller using standard system discovery.
+:: Checks PATH and the Windows py launcher — no hardcoded paths.
+set PYTHON=
+set PYINSTALLER=
+
+:: 1. Try py launcher (preferred on Windows — handles side-by-side installs)
+where py >nul 2>&1
+if %errorlevel% == 0 (
+    set PYTHON=py -3
+    echo [Python] Using Windows py launcher
+    goto :found_python
+)
+
+:: 2. Try python3 / python on PATH
+for %%P in (python3 python) do (
+    if not defined PYTHON (
+        where %%P >nul 2>&1 && set PYTHON=%%P
+    )
+)
+if defined PYTHON goto :found_python
+
+echo ERROR: Python 3 not found. Install from python.org or via 'winget install Python.Python.3.12'
+exit /b 1
+
+:found_python
+:: Locate pyinstaller via pip if not already on PATH
+where pyinstaller >nul 2>&1
+if %errorlevel% == 0 (
+    set PYINSTALLER=pyinstaller
+) else (
+    for /f "delims=" %%P in ('%PYTHON% -c "import sysconfig; print(sysconfig.get_path(\"scripts\"))" 2^>nul') do (
+        if exist "%%P\pyinstaller.exe" set PYINSTALLER=%%P\pyinstaller.exe
+    )
+)
+if not defined PYINSTALLER (
+    echo [PyInstaller] Not found. Installing...
+    %PYTHON% -m pip install pyinstaller --quiet
+    set PYINSTALLER=%PYTHON% -m PyInstaller
+)
+
 set ISCC="C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 set PROJECT_DIR=%~dp0
 
@@ -20,9 +58,7 @@ echo     Done.
 :: Step 2 - Regenerate icon
 echo [2/4] Generating app icon...
 %PYTHON% -c "import sys; sys.path.insert(0, '.'); from app.icon import build_icon; build_icon(force=True); print('    Icon OK')"
-if errorlevel 1 (
-    echo     WARNING: Icon generation failed, using existing icon.
-)
+if errorlevel 1 echo     WARNING: Icon generation failed, using existing icon.
 
 :: Step 3 - PyInstaller
 echo [3/4] Building executable with PyInstaller...
@@ -46,7 +82,7 @@ if exist %ISCC% (
 ) else (
     echo     Inno Setup not found at %ISCC%
     echo     Download from https://jrsoftware.org/isinfo.php
-    echo     Skipping installer creation - exe folder is ready in dist\
+    echo     Skipping installer creation.
 )
 
 echo.

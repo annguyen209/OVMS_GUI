@@ -22,8 +22,9 @@ a = Analysis(
     pathex=[str(project_dir)],
     binaries=[],
     datas=[
-        (str(project_dir / 'assets'), 'assets'),
-        (str(project_dir / 'app'),    'app'),
+        (str(project_dir / 'assets'),        'assets'),
+        (str(project_dir / 'app'),           'app'),
+        (str(project_dir / 'ovms-proxy.py'), '.'),
         *ctk_datas,
     ],
     hiddenimports=[
