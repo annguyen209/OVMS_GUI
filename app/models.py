@@ -330,18 +330,15 @@ def _download_worker(
         local_dir = cfg.models_dir / model.repo_folder_name
         logger.info("Download: local_dir=%s", local_dir)
 
-        # Clean up stale zero-byte lock/incomplete files from a previous
-        # interrupted download so snapshot_download can start fresh.
+        # Wipe the entire download staging directory from any previous
+        # interrupted attempt so snapshot_download starts completely fresh.
+        # On Windows, lock files from a crashed session can't be deleted while
+        # held open — shutil.rmtree with ignore_errors handles that gracefully.
+        import shutil as _shutil
         dl_cache = local_dir / ".cache" / "huggingface" / "download"
         if dl_cache.is_dir():
-            stale = [f for f in dl_cache.iterdir()
-                     if f.is_file() and f.stat().st_size == 0]
-            for f in stale:
-                try:
-                    f.unlink()
-                except Exception:
-                    pass
-            logger.info("Download: cleared %d stale lock files", len(stale))
+            _shutil.rmtree(dl_cache, ignore_errors=True)
+            logger.info("Download: cleared stale staging dir %s", dl_cache)
 
         done_event = threading.Event()
         exc_holder: list = [None]
