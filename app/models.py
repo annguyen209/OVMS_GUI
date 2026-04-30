@@ -304,12 +304,14 @@ def _download_worker(
     try:
         from huggingface_hub import snapshot_download, HfFileSystem
 
-        # Count expected files for progress estimation
+        # Get expected total bytes for accurate byte-based progress
+        total_bytes = 0
         try:
             fs = HfFileSystem()
-            total_files = max(len(fs.ls(model.hf_repo_id, detail=False)), 1)
+            entries = fs.ls(model.hf_repo_id, detail=True)
+            total_bytes = sum(e.get("size", 0) for e in entries if isinstance(e, dict))
         except Exception:
-            total_files = 15  # reasonable default for OV models
+            pass
 
         cfg.models_dir.mkdir(parents=True, exist_ok=True)
         local_dir = cfg.models_dir / model.repo_folder_name
@@ -327,7 +329,7 @@ def _download_worker(
 
         threading.Thread(target=_dl, daemon=True, name=f"hf-{model.repo_folder_name}").start()
 
-        # Poll local_dir for file count while download runs in background
+        # Poll local_dir for downloaded bytes while download runs in background
         while not done_event.is_set():
             if cancel_event and cancel_event.is_set():
                 model.is_downloading = False
@@ -336,8 +338,16 @@ def _download_worker(
                     on_done(model, False, "Download cancelled.")
                 return
             if local_dir.is_dir():
-                n = sum(1 for f in local_dir.rglob("*") if f.is_file() and f.suffix != ".lock")
-                pct = min(98.0, (n / total_files) * 100.0)
+                downloaded = sum(
+                    f.stat().st_size for f in local_dir.rglob("*")
+                    if f.is_file() and f.suffix not in (".lock", ".tmp")
+                )
+                if total_bytes > 0:
+                    pct = min(98.0, downloaded / total_bytes * 100.0)
+                else:
+                    # fallback: file count estimate
+                    n = sum(1 for f in local_dir.rglob("*") if f.is_file() and f.suffix not in (".lock", ".tmp"))
+                    pct = min(98.0, n / 15 * 100.0)
                 model.download_progress = pct
                 if on_progress:
                     on_progress(model, pct)

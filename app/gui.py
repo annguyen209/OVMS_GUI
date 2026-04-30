@@ -515,6 +515,7 @@ class ModelRow(ctk.CTkFrame):
                 hover_color=theme.BORDER,
                 border_width=0,
                 text_color=theme.MUTED,
+                command=self._on_btn_click,
             )
         elif model.is_downloaded:
             self._status_lbl.configure(text="Downloaded", text_color=theme.GREEN)
@@ -525,6 +526,7 @@ class ModelRow(ctk.CTkFrame):
                 fg_color=theme.BLUE,
                 hover_color=theme.BLUE_H,
                 text_color="#ffffff",
+                command=self._on_btn_click,
             )
         else:
             self._status_lbl.configure(text="Not downloaded", text_color=theme.MUTED)
@@ -536,6 +538,7 @@ class ModelRow(ctk.CTkFrame):
                 hover_color="#475569",
                 border_width=0,
                 text_color="#ffffff",
+                command=self._on_btn_click,
             )
 
     def _on_btn_click(self):
