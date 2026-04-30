@@ -234,15 +234,47 @@ def _run(app, harness: TestHarness):
     return 0 if failed == 0 else 1
 
 
+class DialogInterceptor:
+    """
+    Replaces tkinter.messagebox dialogs in headless mode.
+    Matches dialog text against keyword rules; falls back to default_answer.
+    Logs every intercepted dialog to the terminal.
+    """
+
+    # (keyword_in_message, answer)  — first match wins
+    RULES: list[tuple[str, bool]] = [
+        ("install",  False),   # "Would you like to install…" → No (test handles it)
+        ("remove",   True),    # "Remove component?" → Yes
+        ("uninstall", True),   # removal confirmations → Yes
+        ("delete",   True),    # deletion confirmations → Yes
+    ]
+    DEFAULT = False
+
+    def __call__(self, *args, **kwargs) -> bool:
+        text = " ".join(str(a) for a in args).lower()
+        answer = self.DEFAULT
+        for keyword, result in self.RULES:
+            if keyword in text:
+                answer = result
+                break
+        label = "Yes" if answer else "No"
+        preview = " ".join(str(a) for a in args)[:80]
+        print(f"  {_D}[dialog] {preview!r}  →  {label}{_X}")
+        return answer
+
+    def silent(self, *args, **kwargs):
+        """For showinfo/warning/error — log but don't block."""
+        preview = " ".join(str(a) for a in args)[:80]
+        print(f"  {_D}[dialog] {preview!r}{_X}")
+
+
 def main():
     import tkinter.messagebox as _mb
-    # Suppress all modal dialogs in headless mode:
-    # - "Would you like to install missing components?" → No (runner handles installs)
-    # - Any other yes/no dialogs → No by default
-    _mb.askyesno   = lambda *a, **kw: False
-    _mb.showinfo   = lambda *a, **kw: None
-    _mb.showwarning = lambda *a, **kw: None
-    _mb.showerror  = lambda *a, **kw: None
+    _interceptor    = DialogInterceptor()
+    _mb.askyesno    = _interceptor
+    _mb.showinfo    = _interceptor.silent
+    _mb.showwarning = _interceptor.silent
+    _mb.showerror   = _interceptor.silent
 
     from app.gui import App
 
