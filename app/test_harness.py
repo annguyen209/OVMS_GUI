@@ -149,7 +149,7 @@ class ModelsHarness(_HarnessBase):
 
     def wait_downloaded(self, display_name: str, timeout: float = 600) -> None:
         self.wait(
-            lambda: self.state(display_name) == "Downloaded",
+            lambda: self.state(display_name) in ("Downloaded", "Active"),
             timeout=timeout, poll_ms=2000, label=f"{display_name} downloaded",
         )
 

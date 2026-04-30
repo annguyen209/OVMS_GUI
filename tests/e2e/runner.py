@@ -201,7 +201,7 @@ def _run(app, harness: TestHarness):
 
     for step in TESTS:
         # Skip if dependency failed
-        if any(results.get(dep) == "FAIL" for dep in step.depends_on):
+        if any(results.get(dep) in ("FAIL", "SKIP") for dep in step.depends_on):
             results[step.id] = "SKIP"
             skipped += 1
             print(f"  {_D}⊘  {step.label}  [skipped — dependency failed]{_X}")
