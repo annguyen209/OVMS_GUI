@@ -419,7 +419,7 @@ class ModelRow(ctk.CTkFrame):
         self.refresh()
 
     # Shared weight ratios - header reads these too so columns align
-    _WEIGHTS = (5, 1, 2, 2)
+    _WEIGHTS = (5, 1, 2, 2, 1)
 
     def _build_ui(self):
         for col, w in enumerate(self._WEIGHTS):
@@ -487,13 +487,31 @@ class ModelRow(ctk.CTkFrame):
             corner_radius=6,
             command=self._on_btn_click,
         )
-        self._btn.grid(row=0, column=3, sticky="ew", padx=(4, 14), pady=10)
+        self._btn.grid(row=0, column=3, sticky="ew", padx=(4, 4), pady=10)
+
+        # Delete button — shown only when model is downloaded
+        self._del_btn = ctk.CTkButton(
+            self,
+            text="🗑",
+            width=34, height=34,
+            font=ctk.CTkFont(size=14),
+            fg_color=theme.CARD2,
+            hover_color="#8c1c22",
+            border_width=1, border_color=theme.BORDER2,
+            text_color=theme.MUTED,
+            corner_radius=6,
+            command=self._delete_model,
+        )
+        self._del_btn.grid(row=0, column=4, padx=(0, 10), pady=10)
 
     def refresh(self):
         """Update status label and button text to reflect current model state."""
         model = self._model
         active = read_active_model_name()
         is_active = active and active == model.model_name_for_config
+
+        show_del = model.is_downloaded and not model.is_downloading
+        self._del_btn.grid() if show_del else self._del_btn.grid_remove()
 
         if model.is_downloading:
             pct = model.download_progress
@@ -574,6 +592,23 @@ class ModelRow(ctk.CTkFrame):
         if self._cancel_event:
             self._cancel_event.set()
         self._btn.configure(state="disabled", text="Cancelling…")
+
+    def _delete_model(self):
+        import tkinter.messagebox as _mb
+        import shutil
+        if not _mb.askyesno(
+            "Delete Model",
+            f"Delete '{self._model.display_name}' from disk?\n\n"
+            f"{self._model.local_path}\n\nThis cannot be undone.",
+            icon="warning",
+        ):
+            return
+        try:
+            shutil.rmtree(self._model.local_path)
+            self._notify(f"Deleted: {self._model.display_name}", theme.MUTED)
+        except Exception as exc:
+            self._notify(f"Delete failed: {exc}", theme.RED)
+        self.refresh()
 
     def _on_progress(self, model: ModelInfo, pct: float):
         # Called from background thread - schedule GUI update on main thread
@@ -974,7 +1009,8 @@ class ModelsTab(ctk.CTkFrame):
             (0, "Model",  "w",      14,  0),
             (1, "Size",   "center",  4,  4),
             (2, "Status", "center",  4,  4),
-            (3, "Action", "center",  4, 14),
+            (3, "Action", "center",  4,  4),
+            (4, "",       "center",  0, 10),
         ]
         for col, text, anchor, px_l, px_r in col_defs:
             ctk.CTkLabel(
