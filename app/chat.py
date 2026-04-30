@@ -17,26 +17,9 @@ import httpx
 from app.config import cfg
 from app.models import read_active_model_name
 from app.tools import TOOL_DEFINITIONS, execute_tool, parse_text_tool_call
+from app import theme
 
 logger = logging.getLogger(__name__)
-
-_GREEN   = "#107c10"
-_RED     = "#a4262c"
-_AMBER   = "#c55000"
-_MUTED   = "#6b7280"
-_TEXT    = "#111827"
-_TEXT2   = "#374151"
-_BLUE    = "#0078d4"
-_BLUE_H  = "#106ebe"
-_BORDER  = "#e5e7eb"
-_BORDER2 = "#d1d5db"
-_CARD    = "#ffffff"
-_CARD2   = "#f9fafb"
-
-_USER_BG   = "#eff6ff"   # very light blue
-_ASSIST_BG = "#ffffff"   # white
-_SYSTEM_BG = "#f9fafb"   # gray-50
-_CHAT_BG   = "#f3f4f6"   # gray-100
 
 
 # ---------------------------------------------------------------------------
@@ -278,16 +261,16 @@ def stream_chat(
 class MessageBubble(ctk.CTkFrame):
     """A single chat message card with Copy and optional Retry buttons."""
 
-    _ROLE_COLORS  = {"user": _BLUE,  "assistant": _GREEN, "system": _TEXT2}
-    _BORDER_COLORS = {"user": "#bfdbfe", "assistant": "#bbf7d0", "system": _BORDER}
-    _BG_COLORS     = {"user": _USER_BG,  "assistant": _ASSIST_BG, "system": _SYSTEM_BG}
+    _ROLE_COLORS  = {"user": theme.BLUE,  "assistant": theme.GREEN, "system": theme.TEXT2}
+    _BORDER_COLORS = {"user": "#bfdbfe", "assistant": "#bbf7d0", "system": theme.BORDER}
+    _BG_COLORS     = {"user": theme.USER_BG,  "assistant": theme.ASSIST_BG, "system": theme.SYSTEM_BG}
 
     def __init__(self, master, role: str, content: str = "",
                  on_retry=None, **kwargs):
-        kwargs.setdefault("fg_color",      self._BG_COLORS.get(role, _ASSIST_BG))
+        kwargs.setdefault("fg_color",      self._BG_COLORS.get(role, theme.ASSIST_BG))
         kwargs.setdefault("corner_radius", 8)
         kwargs.setdefault("border_width",  1)
-        kwargs.setdefault("border_color",  self._BORDER_COLORS.get(role, _BORDER))
+        kwargs.setdefault("border_color",  self._BORDER_COLORS.get(role, theme.BORDER))
         super().__init__(master, **kwargs)
         self._role     = role
         self._on_retry = on_retry
@@ -298,28 +281,28 @@ class MessageBubble(ctk.CTkFrame):
 
         ctk.CTkLabel(hdr, text=role.capitalize(),
                      font=ctk.CTkFont(size=10, weight="bold"),
-                     text_color=self._ROLE_COLORS.get(role, _MUTED),
+                     text_color=self._ROLE_COLORS.get(role, theme.MUTED),
                      anchor="w").pack(side="left")
 
         # Retry button (assistant only)
         if role == "assistant" and on_retry:
             ctk.CTkButton(hdr, text="Retry", width=48, height=20,
                           font=ctk.CTkFont(size=10),
-                          fg_color=_CARD2, hover_color=_BORDER,
-                          border_width=1, border_color=_BORDER2,
-                          text_color=_TEXT2,
+                          fg_color=theme.CARD2, hover_color=theme.BORDER,
+                          border_width=1, border_color=theme.BORDER2,
+                          text_color=theme.TEXT2,
                           command=on_retry,
                           ).pack(side="right", padx=(4, 0))
 
         # Copy button (all roles)
         self._copy_lbl = ctk.CTkLabel(hdr, text="", font=ctk.CTkFont(size=10),
-                                       text_color=_GREEN)
+                                       text_color=theme.GREEN)
         self._copy_lbl.pack(side="right", padx=(0, 4))
         ctk.CTkButton(hdr, text="Copy", width=48, height=20,
                       font=ctk.CTkFont(size=10),
-                      fg_color=_CARD2, hover_color=_BORDER,
-                      border_width=1, border_color=_BORDER2,
-                      text_color=_TEXT2,
+                      fg_color=theme.CARD2, hover_color=theme.BORDER,
+                      border_width=1, border_color=theme.BORDER2,
+                      text_color=theme.TEXT2,
                       command=self._copy,
                       ).pack(side="right", padx=(0, 2))
 
@@ -327,8 +310,8 @@ class MessageBubble(ctk.CTkFrame):
         self._textbox = tk.Text(
             self,
             font=("Segoe UI", 13),
-            bg=self._BG_COLORS.get(role, "#ffffff"),
-            fg="#111827",
+            bg=self._BG_COLORS.get(role, theme.ASSIST_BG),
+            fg=theme.TEXT,
             relief="flat",
             borderwidth=0,
             highlightthickness=0,
@@ -396,13 +379,13 @@ class ChatTab(ctk.CTkFrame):
 
     def _build_ui(self):
         # ---- Top bar ----
-        top = ctk.CTkFrame(self, fg_color=_CARD, corner_radius=0, height=48,
-                           border_width=1, border_color=_BORDER)
+        top = ctk.CTkFrame(self, fg_color=theme.CARD, corner_radius=0, height=48,
+                           border_width=1, border_color=theme.BORDER)
         top.pack(fill="x")
         top.pack_propagate(False)
 
         ctk.CTkLabel(top, text="Model:", font=ctk.CTkFont(size=12),
-                     text_color=_MUTED).pack(side="left", padx=(14, 4), pady=12)
+                     text_color=theme.MUTED).pack(side="left", padx=(14, 4), pady=12)
 
         self._model_entry = ctk.CTkEntry(top, font=ctk.CTkFont(size=12), width=280, height=30)
         self._model_entry.pack(side="left", pady=9)
@@ -410,54 +393,54 @@ class ChatTab(ctk.CTkFrame):
 
         ctk.CTkButton(
             top, text="Refresh", width=60, height=30, font=ctk.CTkFont(size=11),
-            fg_color=_CARD2, hover_color=_BORDER,
-            border_width=1, border_color=_BORDER2,
-            text_color=_TEXT2,
+            fg_color=theme.CARD2, hover_color=theme.BORDER,
+            border_width=1, border_color=theme.BORDER2,
+            text_color=theme.TEXT2,
             command=self._refresh_model_name,
         ).pack(side="left", padx=4)
 
         ctk.CTkButton(
             top, text="Clear", width=70, height=30, font=ctk.CTkFont(size=12),
-            fg_color=_CARD2, hover_color=_BORDER,
-            border_width=1, border_color=_BORDER2,
-            text_color=_TEXT2,
+            fg_color=theme.CARD2, hover_color=theme.BORDER,
+            border_width=1, border_color=theme.BORDER2,
+            text_color=theme.TEXT2,
             command=self._clear,
         ).pack(side="right", padx=14)
 
         # Tools toggle
         self._tools_var = ctk.BooleanVar(value=True)
         ctk.CTkLabel(top, text="Web tools:",
-                     font=ctk.CTkFont(size=11), text_color=_MUTED,
+                     font=ctk.CTkFont(size=11), text_color=theme.MUTED,
                      ).pack(side="right", padx=(0, 4))
         ctk.CTkSwitch(top, text="", variable=self._tools_var,
-                      width=40, button_color=_BLUE, progress_color=_BLUE,
+                      width=40, button_color=theme.BLUE, progress_color=theme.BLUE,
                       ).pack(side="right", padx=(0, 4))
 
         ctk.CTkLabel(top, text="System prompt:", font=ctk.CTkFont(size=12),
-                     text_color=_MUTED).pack(side="right", padx=(0, 4))
+                     text_color=theme.MUTED).pack(side="right", padx=(0, 4))
 
         self._sys_entry = ctk.CTkEntry(top, font=ctk.CTkFont(size=12), width=240, height=30,
                                        placeholder_text="Optional system message")
         self._sys_entry.pack(side="right", pady=9)
 
         # ---- Scrollable message area ----
-        self._scroll = ctk.CTkScrollableFrame(self, fg_color=_CHAT_BG, corner_radius=0)
+        self._scroll = ctk.CTkScrollableFrame(self, fg_color=theme.CHAT_BG, corner_radius=0)
         self._scroll.pack(fill="both", expand=True)
 
         # ---- Status bar ----
         self._status = ctk.CTkLabel(
             self, text="", font=ctk.CTkFont(size=11),
-            text_color=_MUTED, anchor="w", height=22,
+            text_color=theme.MUTED, anchor="w", height=22,
         )
         self._status.pack(fill="x", padx=14)
 
         # ---- Input row ----
         # Use tk.Frame + tk.Text for the input so Vietnamese IME works natively.
         # CTkTextbox intercepts key events that break IME character composition.
-        input_row = tk.Frame(self, bg=_CARD,
+        input_row = tk.Frame(self, bg=theme.CARD,
                              highlightthickness=1,
-                             highlightbackground=_BORDER,
-                             highlightcolor=_BORDER,
+                             highlightbackground=theme.BORDER,
+                             highlightcolor=theme.BORDER,
                              height=72)
         input_row.pack(fill="x", side="bottom")
         input_row.pack_propagate(False)
@@ -466,13 +449,13 @@ class ChatTab(ctk.CTkFrame):
         self._input = tk.Text(
             input_row,
             font=("Segoe UI", 12),
-            bg=_CARD2,
-            fg=_TEXT,
-            insertbackground=_TEXT,    # cursor colour
+            bg=theme.CARD2,
+            fg=theme.TEXT,
+            insertbackground=theme.TEXT,    # cursor colour
             relief="flat",
             highlightthickness=1,
-            highlightbackground=_BORDER,
-            highlightcolor=_BLUE,
+            highlightbackground=theme.BORDER,
+            highlightcolor=theme.BLUE,
             wrap="word",
             height=3,
             padx=8,
@@ -499,8 +482,8 @@ class ChatTab(ctk.CTkFrame):
             width=80,
             height=50,
             font=ctk.CTkFont(size=13, weight="bold"),
-            fg_color=_BLUE,
-            hover_color=_BLUE_H,
+            fg_color=theme.BLUE,
+            hover_color=theme.BLUE_H,
             text_color="#ffffff",
             command=self._send,
         )
@@ -570,11 +553,11 @@ class ChatTab(ctk.CTkFrame):
         self._streaming = True
         self._stop_event.clear()
         self._send_btn.configure(
-            text="Stop", fg_color=_RED, hover_color="#8c1c22",
+            text="Stop", fg_color=theme.RED, hover_color="#8c1c22",
             state="normal", command=self._stop_streaming,
         )
         status_text = "Thinking (web tools on)..." if use_tools else "Generating..."
-        self._status.configure(text=status_text, text_color=_AMBER)
+        self._status.configure(text=status_text, text_color=theme.AMBER)
 
         stream_chat(
             messages=self._messages,
@@ -636,10 +619,10 @@ class ChatTab(ctk.CTkFrame):
         self._streaming = True
         self._stop_event.clear()
         self._send_btn.configure(
-            text="Stop", fg_color=_RED, hover_color="#8c1c22",
+            text="Stop", fg_color=theme.RED, hover_color="#8c1c22",
             state="normal", command=self._stop_streaming,
         )
-        self._status.configure(text="Retrying...", text_color=_AMBER)
+        self._status.configure(text="Retrying...", text_color=theme.AMBER)
 
         stream_chat(
             messages=self._messages,
@@ -670,7 +653,7 @@ class ChatTab(ctk.CTkFrame):
             "fetch_url":        "Fetching URL",
         }.get(name, f"Calling {name}")
         self.after(0, lambda: self._status.configure(
-            text=f"{label}...", text_color=_BLUE))
+            text=f"{label}...", text_color=theme.BLUE))
 
     def _on_chunk(self, text: str):
         self.after(0, lambda t=text: self._apply_chunk(t))
@@ -687,14 +670,14 @@ class ChatTab(ctk.CTkFrame):
         self._streaming = False
         self._send_btn.configure(
             state="normal", text="Send",
-            fg_color=_BLUE, hover_color=_BLUE_H,
+            fg_color=theme.BLUE, hover_color=theme.BLUE_H,
             command=self._send,
         )
         if self._stop_event.is_set():
-            self._status.configure(text="Stopped.", text_color=_MUTED)
+            self._status.configure(text="Stopped.", text_color=theme.MUTED)
             self.after(2000, lambda: self._status.configure(text=""))
         else:
-            self._status.configure(text="", text_color=_MUTED)
+            self._status.configure(text="", text_color=theme.MUTED)
 
         if self._active_bubble:
             raw = self._active_bubble.get_text()
@@ -711,10 +694,10 @@ class ChatTab(ctk.CTkFrame):
         self._streaming = False
         self._send_btn.configure(
             state="normal", text="Send",
-            fg_color=_BLUE, hover_color=_BLUE_H,
+            fg_color=theme.BLUE, hover_color=theme.BLUE_H,
             command=self._send,
         )
-        self._status.configure(text=f"Error: {msg}", text_color=_RED)
+        self._status.configure(text=f"Error: {msg}", text_color=theme.RED)
         if self._active_bubble:
             self._active_bubble.append(f"\n[Error: {msg}]")
         self._active_bubble = None
