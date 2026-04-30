@@ -185,6 +185,14 @@ class ServerManager:
             # Ensure log and workspace directories exist
             Path(cfg.ovms_log).parent.mkdir(parents=True, exist_ok=True)
             cfg.ovms_workspace.mkdir(parents=True, exist_ok=True)
+            # Create a minimal config.json if none exists so OVMS can start
+            if not cfg.config_json.is_file():
+                import json as _json
+                cfg.config_json.write_text(
+                    _json.dumps({"model_config_list": [], "mediapipe_config_list": []}, indent=2),
+                    encoding="utf-8",
+                )
+                logger.info("Created empty config.json — activate a model to load one")
             gui_log = cfg.ovms_gui_log
             try:
                 log_fh = open(gui_log, "a", encoding="utf-8")
