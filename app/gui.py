@@ -487,19 +487,6 @@ class ModelRow(ctk.CTkFrame):
         active = read_active_model_name()
         is_active = active and active == model.model_name_for_config
 
-        if model.broken:
-            self._status_lbl.configure(text="Incompatible", text_color=theme.RED)
-            self._progress_bar.grid_remove()
-            self._btn.configure(
-                text="Incompatible",
-                state="disabled",
-                fg_color=theme.BORDER,
-                hover_color=theme.BORDER,
-                border_width=0,
-                text_color=theme.MUTED,
-            )
-            return
-
         if model.is_downloading:
             pct = model.download_progress
             self._status_lbl.configure(text=f"Downloading {pct:.0f}%", text_color=theme.AMBER)
