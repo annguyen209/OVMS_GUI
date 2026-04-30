@@ -9,3 +9,4 @@ build.log
 ovms-gui-config.json
 test_client/obj/
 test_client/bin/
+.pytest_cache/
