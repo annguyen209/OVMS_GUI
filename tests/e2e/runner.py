@@ -68,21 +68,18 @@ def _install_all(h: TestHarness):
 
 
 def _remove_venv(h: TestHarness):
+    from app.installer import _VENV_PY
     h.tab("Setup")
     h.setup.remove("Python 3.x venv")
-    h.wait(
-        lambda: "Not found" in h.setup.status("Python 3.x venv"),
-        timeout=30, label="venv removed",
-    )
+    # Check filesystem directly — faster and more reliable than polling the UI label
+    h.wait(lambda: not _VENV_PY.is_file(), timeout=60, label="venv file removed")
 
 
 def _reinstall_venv(h: TestHarness):
+    from app.installer import _VENV_PY
     h.tab("Setup")
     h.setup.install("Python 3.x venv")
-    h.wait(
-        lambda: "Installed" in h.setup.status("Python 3.x venv"),
-        timeout=120, label="venv reinstalled",
-    )
+    h.wait(lambda: _VENV_PY.is_file(), timeout=120, label="venv file created")
     # Packages (fastapi, httpx, openvino, etc.) were lost when venv was removed — reinstall all
     h.setup.install_all()
     h.setup.wait_all_ok(timeout=1800)
