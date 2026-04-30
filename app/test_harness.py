@@ -163,7 +163,18 @@ class ModelsHarness(_HarnessBase):
 class DashboardHarness(_HarnessBase):
 
     def start_stack(self) -> None:
-        self._invoke(self._app._dashboard._action_btn.invoke)
+        """Click Start Stack only if the button is currently in Start state."""
+        btn_text = [None]
+        ev = threading.Event()
+        def _get():
+            try:
+                btn_text[0] = self._app._dashboard._action_btn.cget("text")
+            finally:
+                ev.set()
+        self._app.after(0, _get)
+        ev.wait(5)
+        if btn_text[0] and "Start" in btn_text[0]:
+            self._invoke(self._app._dashboard._action_btn.invoke)
 
     def stop_stack(self) -> None:
         self._invoke(self._app._dashboard._action_btn.invoke)
