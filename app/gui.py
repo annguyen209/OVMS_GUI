@@ -1098,6 +1098,7 @@ class App(ctk.CTk):
         self.title("OVMS Model Server Manager")
         self.geometry("1000x720")
         self.minsize(800, 600)
+        self.after(0, lambda: self.state("zoomed"))
 
         try:
             from app.icon import ICON_PATH
