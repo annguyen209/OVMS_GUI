@@ -85,7 +85,7 @@ def _reinstall_venv(h: TestHarness):
     )
     # Packages (fastapi, httpx, openvino, etc.) were lost when venv was removed — reinstall all
     h.setup.install_all()
-    h.setup.wait_all_ok(timeout=600)
+    h.setup.wait_all_ok(timeout=1800)
 
 
 def _download_model(h: TestHarness):
@@ -185,7 +185,7 @@ TESTS: list[Step] = [
     Step("fresh_state",     "Fresh state check",                  _fresh_state,     timeout=10),
     Step("install_all",     "Install All components",              _install_all,     timeout=300),
     Step("remove_venv",     "Remove Python venv",                  _remove_venv,     depends_on=["install_all"], timeout=30),
-    Step("reinstall_venv",  "Reinstall Python venv",               _reinstall_venv,  depends_on=["remove_venv"], timeout=120),
+    Step("reinstall_venv",  "Reinstall Python venv + packages",     _reinstall_venv,  depends_on=["remove_venv"], timeout=1920),
     Step("download_model",  "Download Phi-3.5-mini (~2 GB)",       _download_model,  depends_on=["install_all"], timeout=600),
     Step("cancel_download", "Cancel download (DeepSeek-R1-1.5B)",  _cancel_download, depends_on=["install_all"], timeout=60),
     Step("activate_model",  "Activate Phi-3.5-mini",               _activate_model,  depends_on=["download_model"], timeout=90),

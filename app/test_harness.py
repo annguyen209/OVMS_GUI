@@ -37,12 +37,19 @@ class _HarnessBase:
     def wait(self, condition_fn: Callable[[], bool],
              timeout: float = 60, poll_ms: int = 500,
              label: str = "") -> None:
-        """Poll condition_fn (on main thread) until True or raise TestTimeout."""
+        """Poll condition_fn (on main thread) until True or raise TestTimeout.
+
+        Uses a timer thread as a hard-timeout guard so that a congested tkinter
+        event queue (e.g. pip install spamming app.after calls) cannot
+        prevent the timeout from firing.
+        """
         done   = threading.Event()
         start  = time.time()
         result = [False]
 
         def _check():
+            if done.is_set():
+                return
             try:
                 result[0] = bool(condition_fn())
             except Exception:
@@ -51,11 +58,17 @@ class _HarnessBase:
                 done.set()
             elif time.time() - start < timeout:
                 self._app.after(poll_ms, _check)
-            else:
-                done.set()  # timed out
+            # else: timer guard will fire
 
-        self._app.after(0, _check)
-        done.wait(timeout + 2)
+        # Hard-deadline timer — fires even when the event loop is backed up
+        timer = threading.Timer(timeout + 0.5, done.set)
+        timer.daemon = True
+        timer.start()
+        try:
+            self._app.after(0, _check)
+            done.wait()
+        finally:
+            timer.cancel()
 
         if not result[0]:
             raise TestTimeout(label or repr(condition_fn), time.time() - start)
