@@ -339,20 +339,34 @@ def _download_worker(
         try:
             import httpx as _httpx
             r = _httpx.get(
-                f"https://huggingface.co/api/models/{model.hf_repo_id}",
+                f"https://huggingface.co/api/models/{model.hf_repo_id}/tree/main",
                 timeout=10,
             )
             if r.status_code == 200:
-                siblings = r.json().get("siblings", [])
-                total_bytes = sum(s.get("size", 0) for s in siblings if s.get("size"))
+                items = r.json()
+                total_bytes = sum(
+                    i.get("lfs", {}).get("size", 0) or i.get("size", 0)
+                    for i in items if isinstance(i, dict)
+                )
                 logger.info("Download: total_bytes=%d for %s", total_bytes, model.hf_repo_id)
         except Exception as e:
             logger.warning("Download: could not get file sizes (%s)", e)
 
-        # Clear stale staging directory from a previous cancelled download.
-        dl_cache = local_dir / ".cache" / "huggingface" / "download"
+        # Clear stale staging files for this model in the app's HF cache dir.
+        cache_name = "models--" + model.hf_repo_id.replace("/", "--")
+        dl_cache = cfg.models_dir / ".hf_cache" / cache_name / "blobs"
         if dl_cache.is_dir():
-            _shutil.rmtree(dl_cache, ignore_errors=True)
+            # Remove only incomplete/lock files, keep completed blobs for resume
+            for f in dl_cache.iterdir():
+                if f.is_file() and f.stat().st_size == 0:
+                    try:
+                        f.unlink()
+                    except Exception:
+                        pass
+        # Also clear old-style staging dir if present
+        old_cache = local_dir / ".cache" / "huggingface" / "download"
+        if old_cache.is_dir():
+            _shutil.rmtree(old_cache, ignore_errors=True)
 
         # Run snapshot_download via the managed venv Python as a subprocess.
         # This avoids PyInstaller frozen-env issues where the bundled exe's
@@ -363,9 +377,14 @@ def _download_worker(
         logger.info("Download: starting download (subprocess=%s) repo=%s dir=%s",
                     use_subprocess, model.hf_repo_id, local_dir)
 
+        # Keep HF cache inside the app's models dir so files don't scatter
+        # to ~/.cache/huggingface/hub/ (the "different location" issue).
+        hf_cache_dir = str(cfg.models_dir / ".hf_cache")
+
         done_event = threading.Event()
         exc_holder: list = [None]
         proc_holder: list = [None]
+        terminated = [False]  # set when we intentionally terminate the subprocess
 
         def _dl():
             try:
@@ -373,7 +392,8 @@ def _download_worker(
                     script = (
                         "from huggingface_hub import snapshot_download; "
                         f"snapshot_download(repo_id={model.hf_repo_id!r}, "
-                        f"local_dir={str(local_dir)!r})"
+                        f"local_dir={str(local_dir)!r}, "
+                        f"cache_dir={hf_cache_dir!r})"
                     )
                     # Discard output - tqdm bars can fill the pipe and hang
                     p = _sp.Popen(
@@ -383,7 +403,7 @@ def _download_worker(
                     )
                     proc_holder[0] = p
                     p.wait()  # simple wait - no pipe buffer issues
-                    if p.returncode != 0:
+                    if p.returncode != 0 and not terminated[0]:
                         raise RuntimeError(
                             f"snapshot_download exited with code {p.returncode}"
                         )
@@ -392,11 +412,13 @@ def _download_worker(
                     snapshot_download(
                         repo_id=model.hf_repo_id,
                         local_dir=str(local_dir),
+                        cache_dir=hf_cache_dir,
                     )
                 logger.info("Download: finished OK")
             except Exception as e:
-                logger.error("Download: FAILED: %s", e)
-                exc_holder[0] = e
+                if not terminated[0]:
+                    logger.error("Download: FAILED: %s", e)
+                    exc_holder[0] = e
             finally:
                 done_event.set()
 
@@ -416,6 +438,7 @@ def _download_worker(
                 p = proc_holder[0]
                 if p and p.poll() is None:
                     try:
+                        terminated[0] = True
                         p.terminate()
                     except Exception:
                         pass
