@@ -108,7 +108,13 @@ class ModelInfo:
         if p2.is_dir() and _has_model_files(p2):
             return p2
 
-        # 3. Broad scan: any dir with openvino_model.xml whose name
+        # 3. Subdirectory of standard path (some repos put files in openvino/ subfolder)
+        if p1.is_dir():
+            for sub in p1.iterdir():
+                if sub.is_dir() and _has_model_files(sub):
+                    return sub
+
+        # 4. Broad scan: any dir with openvino_model.xml whose name
         #    matches (exact, prefix, or suffix) the repo folder name
         folder_lower = folder.lower()
         if base.is_dir():
