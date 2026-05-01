@@ -271,6 +271,20 @@ def activate_model(model: ModelInfo) -> tuple[bool, str]:
     return True, f"Model '{model.display_name}' activated."
 
 
+def deactivate_model() -> tuple[bool, str]:
+    """Clear the active model from config.json. Returns (success, message)."""
+    config_path = cfg.config_json
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        data = {"model_config_list": [], "mediapipe_config_list": []}
+        with config_path.open("w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2)
+        logger.info("Deactivated model (cleared config.json)")
+        return True, "Model deactivated."
+    except Exception as exc:
+        return False, f"Failed to deactivate: {exc}"
+
+
 # ---------------------------------------------------------------------------
 # Download logic
 # ---------------------------------------------------------------------------
@@ -361,16 +375,17 @@ def _download_worker(
                         f"snapshot_download(repo_id={model.hf_repo_id!r}, "
                         f"local_dir={str(local_dir)!r})"
                     )
+                    # Discard output - tqdm bars can fill the pipe and hang
                     p = _sp.Popen(
                         [str(venv_py), "-c", script],
-                        stdout=_sp.PIPE, stderr=_sp.STDOUT,
+                        stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
                         creationflags=getattr(_sp, "CREATE_NO_WINDOW", 0),
                     )
                     proc_holder[0] = p
-                    out, _ = p.communicate()
+                    p.wait()  # simple wait - no pipe buffer issues
                     if p.returncode != 0:
                         raise RuntimeError(
-                            (out or b"").decode(errors="replace")[-500:]
+                            f"snapshot_download exited with code {p.returncode}"
                         )
                 else:
                     from huggingface_hub import snapshot_download
@@ -384,6 +399,14 @@ def _download_worker(
                 exc_holder[0] = e
             finally:
                 done_event.set()
+
+        # Snapshot of bytes already on disk before this download session started.
+        # Used to show progress relative to new data only (avoids jumping to 98%).
+        def _dir_bytes(d: Path) -> int:
+            return sum(f.stat().st_size for f in d.rglob("*")
+                       if f.is_file() and f.suffix != ".lock") if d.is_dir() else 0
+
+        bytes_before = _dir_bytes(local_dir)
 
         threading.Thread(target=_dl, daemon=True, name=f"hf-{model.repo_folder_name}").start()
 
@@ -403,20 +426,15 @@ def _download_worker(
                 return
 
             if local_dir.is_dir():
-                # Count ALL file bytes including .incomplete staging files -
-                # snapshot_download writes data into .incomplete files which
-                # grow as chunks arrive, then renames to the final filename.
-                # Only .lock files are empty placeholders and should be skipped.
-                downloaded = sum(
-                    f.stat().st_size for f in local_dir.rglob("*")
-                    if f.is_file() and f.suffix != ".lock"
-                )
+                current = _dir_bytes(local_dir)
+                new_bytes = max(0, current - bytes_before)
+                remaining = max(1, total_bytes - bytes_before) if total_bytes > bytes_before else total_bytes or 1
                 if total_bytes > 0:
-                    pct = min(98.0, downloaded / total_bytes * 100.0)
+                    pct = min(98.0, new_bytes / remaining * 100.0)
                 else:
                     n = sum(1 for f in local_dir.rglob("*")
                             if f.is_file() and f.suffix != ".lock")
-                    pct = min(98.0, n / 15 * 100.0)
+                    pct = min(98.0, max(0, n - 5) / 10 * 100.0)
                 model.download_progress = pct
                 if on_progress:
                     on_progress(model, pct)

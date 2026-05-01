@@ -16,7 +16,7 @@ from pathlib import Path
 import customtkinter as ctk
 
 from app.server import ServerManager
-from app.models import CURATED_MODELS, ModelInfo, download_model, activate_model, read_active_model_name
+from app.models import CURATED_MODELS, ModelInfo, download_model, activate_model, deactivate_model, read_active_model_name
 from app.log_viewer import LogViewerWidget
 from app.config import cfg
 from app.chat import ChatTab
@@ -529,13 +529,14 @@ class ModelRow(ctk.CTkFrame):
             self._status_lbl.configure(text="Active", text_color=theme.BLUE)
             self._progress_bar.grid_remove()
             self._btn.configure(
-                text="In use",
-                state="disabled",
-                fg_color=theme.BORDER,
-                hover_color=theme.BORDER,
-                border_width=0,
-                text_color=theme.MUTED,
-                command=self._on_btn_click,
+                text="Deactivate",
+                state="normal",
+                fg_color=theme.CARD2,
+                hover_color="#fee2e2",
+                border_width=1,
+                border_color=theme.BORDER2,
+                text_color=theme.RED,
+                command=self._deactivate,
             )
         elif model.is_downloaded:
             self._status_lbl.configure(text="Downloaded", text_color=theme.GREEN)
@@ -691,6 +692,24 @@ class ModelRow(ctk.CTkFrame):
         self.refresh()
         color = theme.GREEN if ok else theme.RED
         self._notify(msg, color)
+
+    def _deactivate(self):
+        from app.models import deactivate_model
+        self._btn.configure(state="disabled", text="Deactivating…",
+                            fg_color=theme.AMBER, text_color="#ffffff")
+
+        def _worker():
+            ok, msg = deactivate_model()
+            if ok and (self._server.ovms_running or self._server.proxy_running):
+                pass
+                self.after(0, lambda: self._dashboard_busy(True))
+                self._server.stop_stack()
+                time.sleep(1)
+                ok2, msg2 = self._server.start_stack()
+                self.after(0, lambda: self._dashboard_busy(False))
+            self.after(0, lambda: self._on_activate_done(ok, msg))
+
+        threading.Thread(target=_worker, daemon=True).start()
 
 
 # ---------------------------------------------------------------------------
