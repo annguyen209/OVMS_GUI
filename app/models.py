@@ -313,61 +313,74 @@ def _download_worker(
     model.is_downloading = True
     model.download_progress = 0.0
 
-    # Verify huggingface_hub is importable; if not, guide user to check setup
     try:
-        from huggingface_hub import snapshot_download as _sd_check  # noqa: F401
-        logger.info("Download: huggingface_hub import OK for %s", model.hf_repo_id)
-    except ImportError as ie:
-        model.is_downloading = False
-        logger.error("Download: huggingface_hub ImportError: %s", ie)
-        if on_done:
-            on_done(model, False,
-                    "huggingface_hub not found. Go to Setup tab and reinstall the Python environment.")
-        return
-
-    try:
-        from huggingface_hub import snapshot_download, HfFileSystem
-
-        # Get expected total bytes for accurate byte-based progress.
-        total_bytes = 0
-        try:
-            fs = HfFileSystem()
-            entries = fs.ls(model.hf_repo_id, detail=True)
-            total_bytes = sum(e.get("size", 0) for e in entries if isinstance(e, dict))
-            logger.info("Download: total_bytes=%d for %s", total_bytes, model.hf_repo_id)
-        except Exception as e:
-            logger.warning("Download: could not get file sizes (%s), using file count fallback", e)
+        import subprocess as _sp
+        import shutil as _shutil
 
         cfg.models_dir.mkdir(parents=True, exist_ok=True)
         local_dir = cfg.models_dir / model.repo_folder_name
-        logger.info("Download: local_dir=%s", local_dir)
 
-        # Wipe the entire download staging directory from any previous
-        # interrupted attempt so snapshot_download starts completely fresh.
-        # On Windows, lock files from a crashed session can't be deleted while
-        # held open - shutil.rmtree with ignore_errors handles that gracefully.
-        import shutil as _shutil
+        # Get expected total bytes for progress tracking via httpx (not requests).
+        total_bytes = 0
+        try:
+            import httpx as _httpx
+            r = _httpx.get(
+                f"https://huggingface.co/api/models/{model.hf_repo_id}",
+                timeout=10,
+            )
+            if r.status_code == 200:
+                siblings = r.json().get("siblings", [])
+                total_bytes = sum(s.get("size", 0) for s in siblings if s.get("size"))
+                logger.info("Download: total_bytes=%d for %s", total_bytes, model.hf_repo_id)
+        except Exception as e:
+            logger.warning("Download: could not get file sizes (%s)", e)
+
+        # Clear stale staging directory from a previous cancelled download.
         dl_cache = local_dir / ".cache" / "huggingface" / "download"
         if dl_cache.is_dir():
             _shutil.rmtree(dl_cache, ignore_errors=True)
-            logger.info("Download: cleared stale staging dir %s", dl_cache)
+
+        # Run snapshot_download via the managed venv Python as a subprocess.
+        # This avoids PyInstaller frozen-env issues where the bundled exe's
+        # HTTPS data stream gets silently blocked by Windows security software.
+        venv_py = Path(cfg.python_exe)
+        use_subprocess = venv_py.is_file() and getattr(__import__('sys'), 'frozen', False)
+
+        logger.info("Download: starting download (subprocess=%s) repo=%s dir=%s",
+                    use_subprocess, model.hf_repo_id, local_dir)
 
         done_event = threading.Event()
         exc_holder: list = [None]
-
-        logger.info("Download: starting snapshot_download thread")
+        proc_holder: list = [None]
 
         def _dl():
             try:
-                logger.info("Download: snapshot_download begin repo=%s dir=%s",
-                             model.hf_repo_id, local_dir)
-                snapshot_download(
-                    repo_id=model.hf_repo_id,
-                    local_dir=str(local_dir),
-                )
-                logger.info("Download: snapshot_download finished OK")
+                if use_subprocess:
+                    script = (
+                        "from huggingface_hub import snapshot_download; "
+                        f"snapshot_download(repo_id={model.hf_repo_id!r}, "
+                        f"local_dir={str(local_dir)!r})"
+                    )
+                    p = _sp.Popen(
+                        [str(venv_py), "-c", script],
+                        stdout=_sp.PIPE, stderr=_sp.STDOUT,
+                        creationflags=getattr(_sp, "CREATE_NO_WINDOW", 0),
+                    )
+                    proc_holder[0] = p
+                    out, _ = p.communicate()
+                    if p.returncode != 0:
+                        raise RuntimeError(
+                            (out or b"").decode(errors="replace")[-500:]
+                        )
+                else:
+                    from huggingface_hub import snapshot_download
+                    snapshot_download(
+                        repo_id=model.hf_repo_id,
+                        local_dir=str(local_dir),
+                    )
+                logger.info("Download: finished OK")
             except Exception as e:
-                logger.error("Download: snapshot_download FAILED: %s", e)
+                logger.error("Download: FAILED: %s", e)
                 exc_holder[0] = e
             finally:
                 done_event.set()
@@ -376,6 +389,13 @@ def _download_worker(
 
         while not done_event.is_set():
             if cancel_event and cancel_event.is_set():
+                # Kill subprocess if running
+                p = proc_holder[0]
+                if p and p.poll() is None:
+                    try:
+                        p.terminate()
+                    except Exception:
+                        pass
                 model.is_downloading = False
                 logger.info("Download cancelled: %s", model.hf_repo_id)
                 if on_done:
