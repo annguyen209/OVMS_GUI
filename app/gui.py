@@ -401,7 +401,8 @@ class ModelRow(ctk.CTkFrame):
     """
 
     def __init__(self, master, model: ModelInfo, server: ServerManager,
-                 notify_cb, dashboard_notify_cb=None, dashboard_busy_cb=None, **kwargs):
+                 notify_cb, dashboard_notify_cb=None, dashboard_busy_cb=None,
+                 on_removed_cb=None, **kwargs):
         kwargs.setdefault("fg_color", theme.CARD)
         kwargs.setdefault("corner_radius", 8)
         kwargs.setdefault("border_width", 1)
@@ -412,6 +413,7 @@ class ModelRow(ctk.CTkFrame):
         self._notify            = notify_cb
         self._dashboard_notify  = dashboard_notify_cb or (lambda *a: None)
         self._dashboard_busy    = dashboard_busy_cb   or (lambda *a: None)
+        self._on_removed_cb     = on_removed_cb or (lambda: None)
         self._dl_thread: threading.Thread | None = None
         self._cancel_event: threading.Event | None = None
 
@@ -635,6 +637,7 @@ class ModelRow(ctk.CTkFrame):
         else:
             self._notify(f"Deleted: {self._model.display_name}", theme.MUTED)
         self.refresh()
+        self._on_removed_cb()
 
     def _on_progress(self, model: ModelInfo, pct: float):
         # Called from background thread - schedule GUI update on main thread
@@ -1068,12 +1071,25 @@ class ModelsTab(ctk.CTkFrame):
             row.pack(fill="x", pady=4)
             self._rows.append(row)
 
+        # Restore user-added models from previous sessions
+        for saved in cfg.get_custom_models():
+            try:
+                model = ModelInfo(
+                    hf_repo_id=saved["hf_repo_id"],
+                    display_name=saved.get("display_name", saved["hf_repo_id"].split("/")[-1]),
+                    size_label=saved.get("size_label", "?"),
+                    notes=saved.get("notes", ""),
+                )
+                self._add_from_hf(model, persist=False)
+            except Exception:
+                pass
+
         # HuggingFace search panel
         self._hf_panel = HFSearchPanel(self, models_tab=self)
         self._hf_panel.pack(fill="x", padx=16, pady=(0, 12))
 
 
-    def _add_from_hf(self, model: "ModelInfo"):
+    def _add_from_hf(self, model: "ModelInfo", persist: bool = True):
         """Add a model discovered via HF search to the models list."""
         if any(r._model.hf_repo_id == model.hf_repo_id for r in self._rows):
             return
@@ -1084,10 +1100,26 @@ class ModelsTab(ctk.CTkFrame):
             notify_cb=self._notify,
             dashboard_notify_cb=self._dashboard_notify,
             dashboard_busy_cb=self._dashboard_busy,
+            on_removed_cb=self._save_custom_models,
         )
         row.pack(fill="x", pady=4)
         self._rows.append(row)
-        self._notify(f"Added: {model.display_name}", theme.GREEN)
+        if persist:
+            self._save_custom_models()
+            self._notify(f"Added: {model.display_name}", theme.GREEN)
+
+    def _save_custom_models(self):
+        """Persist all non-curated models to config so they survive restarts."""
+        curated_ids = {m.hf_repo_id for m in CURATED_MODELS}
+        custom = [
+            {"hf_repo_id": r._model.hf_repo_id,
+             "display_name": r._model.display_name,
+             "size_label": r._model.size_label,
+             "notes": r._model.notes}
+            for r in self._rows
+            if r._model.hf_repo_id not in curated_ids
+        ]
+        cfg.save_custom_models(custom)
 
     def _notify(self, message: str, color: str = theme.MUTED):
         self._notif_bar.configure(text=message, text_color=color)
@@ -1265,6 +1297,51 @@ class SettingsTab(ctk.CTkFrame):
         ).grid(row=device_row_idx + 1, column=0, columnspan=2,
                sticky="w", padx=(8, 8), pady=(0, 8))
 
+        # HuggingFace token section
+        ctk.CTkLabel(
+            self, text="HuggingFace Account",
+            font=ctk.CTkFont(size=15, weight="bold"),
+            text_color=theme.TEXT, anchor="w",
+        ).pack(fill="x", padx=20, pady=(20, 4))
+
+        hf_card = ctk.CTkFrame(self, fg_color=theme.CARD, corner_radius=8,
+                               border_width=1, border_color=theme.BORDER)
+        hf_card.pack(fill="x", padx=16, pady=(0, 4))
+
+        ctk.CTkLabel(hf_card,
+                     text="Paste your HuggingFace token to download gated models "
+                          "(DeepSeek, Llama, etc). Get it from huggingface.co/settings/tokens",
+                     font=ctk.CTkFont(size=11), text_color=theme.MUTED,
+                     anchor="w", wraplength=800,
+                     ).pack(fill="x", padx=16, pady=(12, 6))
+
+        token_row = ctk.CTkFrame(hf_card, fg_color="transparent")
+        token_row.pack(fill="x", padx=16, pady=(0, 12))
+
+        self._hf_token_entry = ctk.CTkEntry(
+            token_row, font=ctk.CTkFont(family="Consolas", size=12),
+            placeholder_text="hf_...", show="*", height=32,
+        )
+        self._hf_token_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        # Load existing token
+        from pathlib import Path as _Path
+        _token_path = _Path.home() / ".cache" / "huggingface" / "token"
+        if _token_path.exists():
+            self._hf_token_entry.insert(0, _token_path.read_text().strip())
+
+        self._hf_token_status = ctk.CTkLabel(
+            token_row, text="", font=ctk.CTkFont(size=11), text_color=theme.MUTED, width=100,
+        )
+        self._hf_token_status.pack(side="right", padx=(0, 8))
+
+        ctk.CTkButton(
+            token_row, text="Save", width=80, height=32,
+            font=ctk.CTkFont(size=12),
+            fg_color=theme.BLUE, hover_color=theme.BLUE_H,
+            command=self._save_hf_token,
+        ).pack(side="right")
+
         # Windows startup section
         ctk.CTkLabel(
             self, text="Windows Startup",
@@ -1352,6 +1429,21 @@ class SettingsTab(ctk.CTkFrame):
             entry = self._entries[key]
             entry.delete(0, "end")
             entry.insert(0, path)
+
+    def _save_hf_token(self):
+        from pathlib import Path as _Path
+        token = self._hf_token_entry.get().strip()
+        token_dir = _Path.home() / ".cache" / "huggingface"
+        token_dir.mkdir(parents=True, exist_ok=True)
+        token_path = token_dir / "token"
+        if token:
+            token_path.write_text(token)
+            self._hf_token_status.configure(text="Saved", text_color=theme.GREEN)
+        else:
+            if token_path.exists():
+                token_path.unlink()
+            self._hf_token_status.configure(text="Cleared", text_color=theme.MUTED)
+        self.after(3000, lambda: self._hf_token_status.configure(text=""))
 
     def _save(self):
         updates = {}

@@ -249,6 +249,14 @@ class AppConfig:
     def ovms_device(self) -> str:
         return self._data.get("ovms_device", "GPU")
 
+    def get_custom_models(self) -> list[dict]:
+        """Return list of user-added custom model dicts (hf_repo_id, display_name, size_label, notes)."""
+        return self._data.get("custom_models", [])
+
+    def save_custom_models(self, models: list[dict]) -> None:
+        self._data["custom_models"] = models
+        self._save()
+
     @property
     def ovms_gui_log(self) -> str:
         """Path of the log file the GUI-launched OVMS process writes to."""

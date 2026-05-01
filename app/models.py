@@ -165,13 +165,13 @@ CURATED_MODELS: list[ModelInfo] = [
         notes="Channel-wise quantization for NPU/CPU. Use CPU or NPU device.",
     ),
     ModelInfo(
-        hf_repo_id="OpenVINO/DeepSeek-R1-Distill-Qwen-7B-int4-cw-ov",
+        hf_repo_id="OpenVINO/DeepSeek-R1-Distill-Qwen-7B-int4-ov",
         display_name="DeepSeek-R1-7B",
         size_label="~4 GB",
         notes="Reasoning model. Confirmed working on CPU.",
     ),
     ModelInfo(
-        hf_repo_id="OpenVINO/DeepSeek-R1-Distill-Qwen-1.5B-int4-cw-ov",
+        hf_repo_id="OpenVINO/DeepSeek-R1-Distill-Qwen-1.5B-int4-ov",
         display_name="DeepSeek-R1-1.5B",
         size_label="~1 GB",
         notes="Lightweight reasoning. Confirmed working on CPU.",
@@ -323,10 +323,9 @@ def _download_worker(
         from huggingface_hub import snapshot_download, HfFileSystem
 
         # Get expected total bytes for accurate byte-based progress.
-        # token=False = anonymous access - avoids 401 from stale/invalid cached tokens.
         total_bytes = 0
         try:
-            fs = HfFileSystem(token=False)
+            fs = HfFileSystem()
             entries = fs.ls(model.hf_repo_id, detail=True)
             total_bytes = sum(e.get("size", 0) for e in entries if isinstance(e, dict))
             logger.info("Download: total_bytes=%d for %s", total_bytes, model.hf_repo_id)
@@ -359,7 +358,6 @@ def _download_worker(
                 snapshot_download(
                     repo_id=model.hf_repo_id,
                     local_dir=str(local_dir),
-                    token=False,  # anonymous - avoids 401 from stale cached tokens
                 )
                 logger.info("Download: snapshot_download finished OK")
             except Exception as e:
