@@ -255,7 +255,7 @@ class AppConfig:
 
     def save_custom_models(self, models: list[dict]) -> None:
         self._data["custom_models"] = models
-        self._save()
+        self.save()
 
     @property
     def ovms_gui_log(self) -> str:

@@ -1331,16 +1331,27 @@ class SettingsTab(ctk.CTkFrame):
             self._hf_token_entry.insert(0, _token_path.read_text().strip())
 
         self._hf_token_status = ctk.CTkLabel(
-            token_row, text="", font=ctk.CTkFont(size=11), text_color=theme.MUTED, width=100,
+            token_row, text="", font=ctk.CTkFont(size=11), text_color=theme.MUTED, width=80,
         )
         self._hf_token_status.pack(side="right", padx=(0, 8))
 
         ctk.CTkButton(
-            token_row, text="Save", width=80, height=32,
+            token_row, text="Save", width=70, height=32,
             font=ctk.CTkFont(size=12),
             fg_color=theme.BLUE, hover_color=theme.BLUE_H,
             command=self._save_hf_token,
-        ).pack(side="right")
+        ).pack(side="right", padx=(0, 6))
+
+        self._hf_token_visible = False
+        self._hf_show_btn = ctk.CTkButton(
+            token_row, text="Show", width=60, height=32,
+            font=ctk.CTkFont(size=12),
+            fg_color=theme.CARD2, hover_color=theme.BORDER,
+            border_width=1, border_color=theme.BORDER2,
+            text_color=theme.TEXT2,
+            command=self._toggle_token_visibility,
+        )
+        self._hf_show_btn.pack(side="right", padx=(0, 6))
 
         # Windows startup section
         ctk.CTkLabel(
@@ -1429,6 +1440,11 @@ class SettingsTab(ctk.CTkFrame):
             entry = self._entries[key]
             entry.delete(0, "end")
             entry.insert(0, path)
+
+    def _toggle_token_visibility(self):
+        self._hf_token_visible = not self._hf_token_visible
+        self._hf_token_entry.configure(show="" if self._hf_token_visible else "*")
+        self._hf_show_btn.configure(text="Hide" if self._hf_token_visible else "Show")
 
     def _save_hf_token(self):
         from pathlib import Path as _Path

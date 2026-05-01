@@ -368,9 +368,15 @@ def _download_worker(
 
         threading.Thread(target=_dl, daemon=True, name=f"hf-{model.repo_folder_name}").start()
 
-        # Poll local_dir for downloaded bytes while download runs in background.
-        # Include .incomplete staging files - they contain actual data being
-        # written by snapshot_download before the atomic rename to final paths.
+        # Track download progress by counting bytes in BOTH local_dir AND the
+        # HF hub cache. snapshot_download writes to the cache blobs first, then
+        # hardlinks/copies to local_dir - so local_dir shows 0% until the end.
+        hf_blobs = (
+            Path.home() / ".cache" / "huggingface" / "hub"
+            / ("models--" + model.hf_repo_id.replace("/", "--"))
+            / "blobs"
+        )
+
         while not done_event.is_set():
             if cancel_event and cancel_event.is_set():
                 model.is_downloading = False
@@ -378,20 +384,30 @@ def _download_worker(
                 if on_done:
                     on_done(model, False, "Download cancelled.")
                 return
+
+            downloaded = 0
+            # Count bytes in local_dir (final files after hardlinking)
             if local_dir.is_dir():
-                downloaded = sum(
+                downloaded += sum(
                     f.stat().st_size for f in local_dir.rglob("*")
-                    if f.is_file() and f.suffix != ".lock"
+                    if f.is_file() and f.suffix not in (".lock", ".incomplete")
                 )
-                if total_bytes > 0:
-                    pct = min(98.0, downloaded / total_bytes * 100.0)
-                else:
-                    n = sum(1 for f in local_dir.rglob("*")
-                            if f.is_file() and f.suffix != ".lock")
-                    pct = min(98.0, n / 15 * 100.0)
-                model.download_progress = pct
-                if on_progress:
-                    on_progress(model, pct)
+            # Count bytes in HF cache blobs (actual download destination)
+            if hf_blobs.is_dir():
+                downloaded = max(downloaded, sum(
+                    f.stat().st_size for f in hf_blobs.iterdir()
+                    if f.is_file() and not f.name.endswith(".lock")
+                ))
+
+            if total_bytes > 0:
+                pct = min(98.0, downloaded / total_bytes * 100.0)
+            elif downloaded > 0:
+                pct = min(50.0, downloaded / (1024 * 1024 * 100) * 50.0)
+            else:
+                pct = 0.0
+            model.download_progress = pct
+            if on_progress:
+                on_progress(model, pct)
             done_event.wait(timeout=1.5)
 
         if exc_holder[0]:
