@@ -322,10 +322,11 @@ def _download_worker(
     try:
         from huggingface_hub import snapshot_download, HfFileSystem
 
-        # Get expected total bytes for accurate byte-based progress
+        # Get expected total bytes for accurate byte-based progress.
+        # token=False = anonymous access - avoids 401 from stale/invalid cached tokens.
         total_bytes = 0
         try:
-            fs = HfFileSystem()
+            fs = HfFileSystem(token=False)
             entries = fs.ls(model.hf_repo_id, detail=True)
             total_bytes = sum(e.get("size", 0) for e in entries if isinstance(e, dict))
             logger.info("Download: total_bytes=%d for %s", total_bytes, model.hf_repo_id)
@@ -358,6 +359,7 @@ def _download_worker(
                 snapshot_download(
                     repo_id=model.hf_repo_id,
                     local_dir=str(local_dir),
+                    token=False,  # anonymous - avoids 401 from stale cached tokens
                 )
                 logger.info("Download: snapshot_download finished OK")
             except Exception as e:
